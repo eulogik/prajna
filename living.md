@@ -1,8 +1,8 @@
 # Prajna — Living Document
 
 **Purpose:** Walkthrough/handoff document. Everything you need to pick up this project at any stage.  
-**Last updated:** July 1, 2026  
-**Current phase:** Phase 2 (Gemma 4 E2B Integration) — M4 validation complete
+**Last updated:** July 9, 2026  
+**Current phase:** Phase 3 (Training) — SFT training running on Mac M4 CPU
 
 ---
 
@@ -432,6 +432,83 @@ gcloud compute scp prajna-live:~/checkpoints /Users/eulogikdeveloper/Documents/P
 4. DPO preference learning (3 epochs)
 5. Evaluation on custom benchmarks
 6. Ablation study (8 configurations)
+
+---
+
+## 6B. Phase 3: Training — IN PROGRESS (July 9, 2026)
+
+### Architecture: Multi-Layer CRN Injection
+
+CRN components injected at every 8th layer of Gemma 4 E2B (40 layers total):
+- Injection points: layers 7, 15, 23, 31
+- Base model forward in `no_grad()` (frozen), CRN trained with gradients
+- `crn_mix` per injection depth (sigmoid-gated, init=0.05)
+- `output_hidden_states=True` to extract intermediate hidden states
+
+### CRN Components (optimized for M4 16GB)
+
+| Component | Params | Config |
+|-----------|--------|--------|
+| ResonanceAttention | ~3.4M | 8 frequencies, top_k=2, 4 heads |
+| SkillComposer | ~2.5M | 32 skills, rank=4, top_k=2 |
+| ReflectiveLoop | ~0.8M | 8 correction directions |
+| EpisodicMemory | ~0.05M | 256 slots, dim=64 |
+| crn_mix | 4 | One per injection point |
+| **Total** | **6.7M** | |
+
+### Training Config
+
+- Device: Mac M4 16GB CPU (MPS OOM, too large for unified memory)
+- MAX_LENGTH: 32 tokens
+- INJECT_EVERY: 8 layers (4 injection points)
+- SFT: 2000 steps, LR=3e-4, batch=1, grad_accum=8
+- DPO: 500 steps, LR=5e-6, β=0.1
+- Data: 27,400 SFT samples + 3,000 DPO pairs
+- Speed: ~50s/step (18s backward through frozen lm_head with 262K vocab)
+- ETA: SFT ~28h, DPO ~7h, Total ~35h
+
+### Training Status
+
+```
+Phase: SFT Distillation
+Step: 30/2000
+Loss: 7.65 → 8.71 → 7.79 (fluctuating, normal early training)
+Rate: 0.02 steps/s (~50s/step)
+RSS: ~5.15GB (stable, no leak)
+ETA: ~23 hours remaining for SFT
+```
+
+### Key Findings
+
+1. **Colab free tier unreliable**: Random session disconnections at steps 0-200 across multiple attempts
+2. **MPS OOM on M4 16GB**: 10.2GB model + OS overhead exceeds unified memory during backward
+3. **CPU backward bottleneck**: `lm_head` (262K vocab) backward dominates at ~18s/step
+4. **ResonanceAttention optimization**: Original Python-loop version (16 freq × 4 top_k × 8 injections) was catastrophically slow. Vectorized with scatter_add + batched einsum.
+
+### Files
+
+- `prajna-phase2/src/train_mac.py` — Active training script (Mac M4 CPU)
+- `prajna/train_mac.log` — Training log
+- `prajna/checkpoints/` — Checkpoints (saved every 50 steps)
+- `prajna/state.json` — Resume state
+- `prajna/data/teacher_data.json` — 27,400 SFT samples
+- `prajna/data/dpo_pairs.json` — 3,000 DPO pairs
+
+### Monitoring
+
+```bash
+# Check training progress
+tail -20 prajna/train_mac.log
+
+# Check process
+ps aux | grep train_mac
+
+# Check checkpoints
+ls -la prajna/checkpoints/
+
+# Check state
+cat prajna/state.json
+```
 
 ---
 
