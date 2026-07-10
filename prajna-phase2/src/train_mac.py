@@ -50,8 +50,12 @@ def save_state(s):
     with open(STATE_FILE, 'w') as f: json.dump(s, f, indent=2)
 
 def find_latest_ckpt(p='sft'):
-    c = sorted(glob.glob(f'{CKPT_DIR}/{p}_*.pt'))
-    return c[-1] if c else None
+    c = glob.glob(f'{CKPT_DIR}/{p}_*.pt')
+    if not c: return None
+    def step_of(f):
+        try: return int(f.split(f'/{p}_')[-1].split('.pt')[0])
+        except: return -1
+    return sorted(c, key=step_of)[-1]
 
 state = load_state()
 teacher_file = f'{DATA_DIR}/teacher_data.json'
@@ -469,6 +473,12 @@ else:
 
 print('Data ready')
 
+CRN_PREFIXES = ('crn_mix', 'resonance.', 'skills.', 'reflection.', 'mem.')
+
+def get_crn_state_dict(model):
+    return {k: v.cpu() for k, v in model.state_dict().items()
+            if any(k.startswith(p) for p in CRN_PREFIXES)}
+
 # ---- SFT Training ----
 if not state.get('sft_complete', False):
     print('=' * 60)
@@ -477,7 +487,9 @@ if not state.get('sft_complete', False):
     gc.collect()
     student = PrajnaStudentMultiLayer(device=DEVICE)
     sft_start = state.get('sft_step', 0)
-    latest_ckpt = find_latest_ckpt('sft')
+    # Prefer checkpoint matching saved step; else numerically latest
+    expected = f'{CKPT_DIR}/sft_{sft_start}.pt'
+    latest_ckpt = expected if os.path.exists(expected) else find_latest_ckpt('sft')
     if latest_ckpt:
         print(f'Resuming from: {latest_ckpt}')
         ckpt = torch.load(latest_ckpt, map_location=DEVICE, weights_only=False)
@@ -528,7 +540,7 @@ if not state.get('sft_complete', False):
                     student.save_memory(mem_file)
                     torch.save({
                         'step': step,
-                        'crn': {k: v.cpu() for k, v in student.state_dict().items() if not k.startswith('base_model')},
+                        'crn': get_crn_state_dict(student),
                         'loss': sum(losses[-50:]) / max(len(losses[-50:]), 1),
                         'memory_file': mem_file,
                     }, f'{CKPT_DIR}/sft_{step}.pt')
@@ -548,7 +560,7 @@ if not state.get('sft_complete', False):
     final_loss = sum(losses[-50:]) / max(len(losses[-50:]), 1) if losses else 0
     torch.save({
         'step': step,
-        'crn': {k: v.cpu() for k, v in student.state_dict().items() if not k.startswith('base_model')},
+        'crn': get_crn_state_dict(student),
         'loss': final_loss, 'memory_file': mem_file,
     }, f'{CKPT_DIR}/sft_final.pt')
     state['sft_complete'] = True; state['sft_step'] = step; save_state(state)
@@ -563,7 +575,8 @@ if not state.get('dpo_complete', False):
     print('=' * 60)
     gc.collect()
     dpo_start = state.get('dpo_step', 0)
-    latest_dpo = find_latest_ckpt('dpo')
+    expected = f'{CKPT_DIR}/dpo_{dpo_start}.pt'
+    latest_dpo = expected if os.path.exists(expected) else find_latest_ckpt('dpo')
     if latest_dpo:
         print(f'Resuming from: {latest_dpo}')
         ckpt = torch.load(latest_dpo, map_location=DEVICE, weights_only=False)
@@ -611,7 +624,7 @@ if not state.get('dpo_complete', False):
                     student.save_memory(mem_file)
                     torch.save({
                         'step': step,
-                        'crn': {k: v.cpu() for k, v in student.state_dict().items() if not k.startswith('base_model')},
+                        'crn': get_crn_state_dict(student),
                         'loss': sum(losses[-50:]) / max(len(losses[-50:]), 1),
                         'memory_file': mem_file,
                     }, f'{CKPT_DIR}/dpo_{step}.pt')
@@ -631,7 +644,7 @@ if not state.get('dpo_complete', False):
     final_loss = sum(losses[-50:]) / max(len(losses[-50:]), 1) if losses else 0
     torch.save({
         'step': step,
-        'crn': {k: v.cpu() for k, v in student.state_dict().items() if not k.startswith('base_model')},
+        'crn': get_crn_state_dict(student),
         'loss': final_loss, 'memory_file': mem_file,
     }, f'{CKPT_DIR}/dpo_final.pt')
     state['dpo_complete'] = True; state['dpo_step'] = step; state['phase'] = 'complete'
