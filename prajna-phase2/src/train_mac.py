@@ -355,7 +355,7 @@ class PrajnaStudentMultiLayer(nn.Module):
 
     def _dpo_logps(self, input_ids):
         outputs = self._collect_hidden(input_ids)
-        logits, _ = self._apply_crn(outputs, training=False)
+        logits, _ = self._apply_crn(outputs, training=True)
         return self._get_batch_logps(logits, input_ids)
 
     def _get_batch_logps(self, logits, labels):
@@ -574,6 +574,9 @@ if not state.get('dpo_complete', False):
     print('PHASE 2: DPO ALIGNMENT')
     print('=' * 60)
     gc.collect()
+    # Ensure student exists (recreate if script restarted after SFT)
+    if 'student' not in dir() or 'student' not in globals():
+        student = PrajnaStudentMultiLayer(device=DEVICE)
     dpo_start = state.get('dpo_step', 0)
     expected = f'{CKPT_DIR}/dpo_{dpo_start}.pt'
     latest_dpo = expected if os.path.exists(expected) else find_latest_ckpt('dpo')
@@ -584,6 +587,12 @@ if not state.get('dpo_complete', False):
         if 'memory_file' in ckpt and os.path.exists(ckpt['memory_file']):
             student.load_memory(ckpt['memory_file'])
         dpo_start = ckpt.get('step', 0)
+    elif os.path.exists(f'{CKPT_DIR}/sft_final.pt'):
+        print('Loading SFT-trained CRN from sft_final.pt')
+        ckpt = torch.load(f'{CKPT_DIR}/sft_final.pt', map_location=DEVICE, weights_only=False)
+        student.load_state_dict(ckpt['crn'], strict=False)
+        if 'memory_file' in ckpt and os.path.exists(ckpt['memory_file']):
+            student.load_memory(ckpt['memory_file'])
     dset = DPODataset(dpo_file, student.tok)
     dloader = DataLoader(dset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     params = student.get_params()
