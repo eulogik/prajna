@@ -1,8 +1,8 @@
 # Prajna — Living Document
 
 **Purpose:** Walkthrough/handoff document. Everything you need to pick up this project at any stage.  
-**Last updated:** July 9, 2026  
-**Current phase:** Phase 3 (Training) — SFT training running on Mac M4 CPU
+**Last updated:** July 11, 2026  
+**Current phase:** Phase 3 (Training) — COMPLETE ✓ SFT + DPO done
 
 ---
 
@@ -467,48 +467,39 @@ CRN components injected at every 8th layer of Gemma 4 E2B (40 layers total):
 - Speed: ~50s/step (18s backward through frozen lm_head with 262K vocab)
 - ETA: SFT ~28h, DPO ~7h, Total ~35h
 
-### Training Status
+### Training Status — COMPLETE ✓ (July 11, 2026)
 
 ```
-Phase: SFT Distillation
-Step: 30/2000
-Loss: 7.65 → 8.71 → 7.79 (fluctuating, normal early training)
-Rate: 0.02 steps/s (~50s/step)
-RSS: ~5.15GB (stable, no leak)
-ETA: ~23 hours remaining for SFT
+Phase: SFT + DPO both complete
+SFT: 2000 steps, final loss 0.2262
+DPO: 500 steps, final loss 1.9788, C=-338 > R=-404 (prefers chosen)
+Total training time: ~22h on Mac M4 CPU
+Checkpoints: sft_final.pt, dpo_final.pt (25MB each, CRN params only)
+Memory: memory_sft_final.json, memory_dpo_final.json
 ```
 
-### Key Findings
+### Key Bugs Fixed During Training
 
-1. **Colab free tier unreliable**: Random session disconnections at steps 0-200 across multiple attempts
-2. **MPS OOM on M4 16GB**: 10.2GB model + OS overhead exceeds unified memory during backward
-3. **CPU backward bottleneck**: `lm_head` (262K vocab) backward dominates at ~18s/step
-4. **ResonanceAttention optimization**: Original Python-loop version (16 freq × 4 top_k × 8 injections) was catastrophically slow. Vectorized with scatter_add + batched einsum.
+1. **Checkpoint OOM (step 100):** Save filter `not k.startswith('base_model')` missed `self.lm` alias → 4.3GB checkpoints. Fixed with CRN_PREFIXES whitelist.
+2. **Lexicographic checkpoint sort:** `find_latest_ckpt` sorted `"sft_950.pt" > "sft_1850.pt"` → resumed from wrong step after power failure. Fixed with numeric sort + state-step preference.
+3. **DPO CRN detached:** `_dpo_logps` used `training=False` → gradients never reached CRN, DPO trained nothing (C=R). Fixed to `training=True`.
+4. **DPO student undefined on restart:** DPO block reused SFT's `student` but crashed if script restarted post-SFT. Fixed to recreate student + load sft_final.pt.
 
 ### Files
 
-- `prajna-phase2/src/train_mac.py` — Active training script (Mac M4 CPU)
-- `prajna/train_mac.log` — Training log
-- `prajna/checkpoints/` — Checkpoints (saved every 50 steps)
-- `prajna/state.json` — Resume state
+- `prajna-phase2/src/train_mac.py` — Training script (Mac M4 CPU, fixed)
+- `prajna/checkpoints/` — sft_*.pt (every 50 steps), sft_final.pt, dpo_final.pt
+- `prajna/state.json` — phase=complete
 - `prajna/data/teacher_data.json` — 27,400 SFT samples
 - `prajna/data/dpo_pairs.json` — 3,000 DPO pairs
+- **Backup:** `/Volumes/KIOXIA 1TB/prajna_safety_backup/` (external SSD)
 
-### Monitoring
+### Hardware Notes
 
-```bash
-# Check training progress
-tail -20 prajna/train_mac.log
-
-# Check process
-ps aux | grep train_mac
-
-# Check checkpoints
-ls -la prajna/checkpoints/
-
-# Check state
-cat prajna/state.json
-```
+- Mac Mini M4 16GB: CPU training only (MPS OOM on 10.2GB model)
+- HuggingFace model cache moved to external SSD `/Volumes/KIOXIA 1TB/huggingface_cache/` (HF_HOME env var)
+- Internal disk: 24GB free; KIOXIA: 400GB free
+- Training speed: ~50s/step SFT, ~60s/step DPO
 
 ---
 
