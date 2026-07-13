@@ -553,7 +553,7 @@ amount of exact math CoT data moves the needle.
 
 ## 6D. Release — GitHub (July 13, 2026)
 
-- **Private GitHub repo:** `gautamkishore/prajna` (https://github.com/gautamkishore/prajna)
+- **Private GitHub repo:** `eulogik/prajna` (https://github.com/eulogik/prajna)
 - Contains: full source, `README.md` (exciting), `dpo_final.pt` + `sft_final.pt`
   (25 MB each, CRN params only), episodic-memory JSON.
 - **Purged from history:** `prajna_checkpoints.zip` (386 MB) via `git filter-branch`
