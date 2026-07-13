@@ -1,0 +1,96 @@
+Loading E2B student...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/1951 [00:00<?, ?it/s]Loading weights:   5%|▍         | 91/1951 [00:00<00:02, 862.62it/s]Loading weights:  10%|▉         | 189/1951 [00:00<00:02, 763.71it/s]Loading weights:  16%|█▌        | 305/1951 [00:00<00:01, 903.22it/s]Loading weights:  20%|██        | 398/1951 [00:00<00:01, 835.01it/s]Loading weights:  25%|██▌       | 494/1951 [00:00<00:01, 871.35it/s]Loading weights:  30%|██▉       | 583/1951 [00:00<00:01, 812.91it/s]Loading weights:  35%|███▌      | 685/1951 [00:00<00:01, 789.72it/s]Loading weights:  35%|███▌      | 685/1951 [00:20<00:01, 789.72it/s]Loading weights:  39%|███▊      | 755/1951 [00:23<01:37, 12.23it/s] Loading weights: 100%|██████████| 1951/1951 [00:23<00:00, 83.44it/s]
+CRN: 6,721,432 params | Injections: 4 at [7, 15, 23, 31]
+
+OP        CRN   BASE  example
+add     CRN:   234 BASE:   789  Q:What is 153 + 374? A:527
+        CRN: What is 123 + 234?
+
+What is 123 + 234 + 234?
+
+What is 123 + 234 + 234
+        BASE: What is 123 + 456?
+
+What is 123 + 456 + 789?
+
+What is 123 + 456 + 789
+sub     CRN:    23 BASE:    10  Q:What is 517 - 69? A:448
+        CRN: What is 688 - 32?
+
+What is 898 - 23?
+
+What is 898 - 23?
+
+What is 898 - 23?
+        BASE: What is 1000 - 200?
+
+What is 1000 - 200?
+
+What is 1000 - 200?
+
+What is 10
+mul     CRN:    99 BASE:    12  Q:What is 59 * 79? A:4661
+        CRN: What is 68 * 88? 
+
+What is 89 * 99? 
+
+What is 98 * 98? 
+
+What is 99 * 99?
+        BASE: What is 12 * 12?
+
+What is 12 * 12?
+
+What is 12 * 12?
+
+What is 12 * 12?
+
+What is
+div     CRN:     8 BASE:  1000  Q:What is 928 / 54? A:17
+        CRN: What is 128 / 8?
+
+What is 128 / 8?
+
+What is 128 / 8?
+
+What is 128 / 8?
+
+What is
+        BASE: What is 1000 / 100?
+
+What is 1000 / 10?
+
+What is 1000 / 1?
+
+What is 1000 /
+pow     CRN:    12 BASE: 10000  Q:What is 7^7? A:823543
+        CRN: What is 8^8?
+
+What is 9^9?
+
+What is 10^10?
+
+What is 11^11?
+
+What is 12^12?
+
+What
+        BASE: What is 10^10?
+
+What is 10^100?
+
+What is 10^1000?
+
+What is 10^10000?
+
+What
+
+=== MATH ACCURACY (n=10) ===
+  CRN:  0.0%
+  BASE: 0.0%
+  add  : CRN    0%  BASE    0%
+  sub  : CRN    0%  BASE    0%
+  mul  : CRN    0%  BASE    0%
+  div  : CRN    0%  BASE    0%
+  pow  : CRN    0%  BASE    0%

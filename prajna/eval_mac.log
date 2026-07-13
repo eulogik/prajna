@@ -1,0 +1,75 @@
+Loading model...
+Loading E2B student...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/1951 [00:00<?, ?it/s]Loading weights:   4%|▎         | 70/1951 [00:00<00:02, 685.05it/s]Loading weights:   9%|▉         | 181/1951 [00:00<00:01, 915.68it/s]Loading weights:  14%|█▍        | 273/1951 [00:00<00:02, 816.30it/s]Loading weights:  19%|█▉        | 367/1951 [00:00<00:01, 846.03it/s]Loading weights:  23%|██▎       | 453/1951 [00:00<00:02, 745.15it/s]Loading weights:  28%|██▊       | 553/1951 [00:00<00:01, 808.23it/s]Loading weights:  33%|███▎      | 636/1951 [00:00<00:01, 743.88it/s]Loading weights:  37%|███▋      | 716/1951 [00:00<00:01, 748.05it/s]Loading weights:  37%|███▋      | 716/1951 [00:20<00:01, 748.05it/s]Loading weights:  39%|███▊      | 755/1951 [00:23<01:59, 10.02it/s] Loading weights: 100%|██████████| 1951/1951 [00:23<00:00, 82.38it/s]
+CRN: 6,721,432 params | Injections: 4 at [7, 15, 23, 31]
+Loaded CRN from step 500, loss 1.9788
+
+============================================================
+EVALUATION
+============================================================
+
+[loaded cached perplexity]
+
+Perplexity (lower=better) on 200 held-out samples:
+  Base E2B:     106.846
+  CRN (SFT+DPO): 6.022
+  Delta:        +100.824 (CRN better)
+
+--- Exact Match: Math ---
+  CRN accuracy: 20%
+   [XX] What is 15 * 17? -> 15 * 17 is 265. 265 is correct. 265 is correct. 265 is
+   [OK] What is 144 / 12? -> 12 12 12 12 12 12 12 12 12 12 1
+   [XX] What is 2^8? -> What is 2^6?
+
+What is 2^5?
+
+What is 2^4?
+
+What is 2^3?
+
+--- Exact Match: Facts ---
+  CRN accuracy: 0%
+   [XX] What is the capital of France? -> What is the capital of Germany?
+
+What is the capital of Ital
+   [XX] Who wrote Romeo and Juliet? -> Who wrote Romeo and Juliet?
+
+Who wrote Romeo and Juliet?
+
+Wh
+   [XX] What year did World War II end? -> Who was the leader of Germany during World War II?
+
+Who was 
+
+--- Qualitative: Code (CRN vs Base) ---
+
+  PROMPT: Write a Python function to check if a number is prime.
+  CRN:  def is_prime(num): for i in range(2, num): if num % i == 0: return False return True
+
+def main
+  BASE: A prime number is a number that is divisible only by 1 and itself.
+
+Write a Python program to print all prime numbers be
+
+  PROMPT: Write a Python function to find the maximum in a list.
+  CRN:  Include code for testing your function. Include code for testing your function. Include code for testing your function. 
+  BASE: The list may be sorted or unsorted.
+
+Write a Python function to reverse a string. The function should take a string as a
+
+--- Qualitative: Reasoning (CRN) ---
+
+  PROMPT: If all bloops are razzies and all razzies are lazzies, are all bloops definitely lazzies?
+  CRN:  Yes, because all bloops are razzies and all razzies are lazzies.
+
+Yes, because all bloops are lazzies
+
+  PROMPT: A train leaves at 2pm going 60mph. Another leaves same place at 3pm going 80mph. When does the second catch up?
+  CRN:  [User 0001]
+
+<h2>Homework Statement</h2>
+A train leaves at 2pm going 60mph. Another train leaves same
+
+Evaluation done in 6.0 min
+Summary: base_ppl=106.846 crn_ppl=6.022 math_acc=20% facts_acc=0%

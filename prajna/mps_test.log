@@ -1,0 +1,7 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Downloading model...
+Tokenizer done
+Loading weights:   0%|          | 0/1951 [00:00<?, ?it/s]Loading weights:   7%|▋         | 127/1951 [00:00<00:01, 1249.00it/s]Loading weights:  14%|█▍        | 277/1951 [00:00<00:01, 1388.31it/s]Loading weights:  22%|██▏       | 432/1951 [00:00<00:01, 1454.33it/s]Loading weights:  30%|██▉       | 578/1951 [00:00<00:00, 1399.67it/s]Loading weights:  38%|███▊      | 746/1951 [00:00<00:00, 1481.76it/s]Loading weights:  38%|███▊      | 746/1951 [00:17<00:00, 1481.76it/s]Loading weights:  39%|███▊      | 755/1951 [00:20<01:17, 15.52it/s]  Loading weights:  47%|████▋     | 909/1951 [00:20<00:39, 26.39it/s]Loading weights:  77%|███████▋  | 1510/1951 [00:20<00:05, 86.73it/s]Loading weights: 100%|██████████| 1951/1951 [00:20<00:00, 95.52it/s]
+/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/multiprocessing/resource_tracker.py:297: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/loky-55919-ghsah4ek'}
+  warnings.warn(

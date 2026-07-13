@@ -1,0 +1,83 @@
+Device: cpu (CPU for base model, CRN components on CPU too)
+This is stable — no session timeouts, runs to completion
+State: phase=data_prep, sft=2000, dpo=0
+CRN components loaded
+Student class defined
+Data exists: 27400 samples
+DPO pairs: 3000
+Data ready
+SFT already complete.
+============================================================
+PHASE 2: DPO ALIGNMENT
+============================================================
+Loading E2B student...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/1951 [00:00<?, ?it/s]Loading weights:   3%|▎         | 65/1951 [00:00<00:03, 612.18it/s]Loading weights:   9%|▉         | 181/1951 [00:00<00:02, 884.29it/s]Loading weights:  14%|█▍        | 270/1951 [00:00<00:02, 797.80it/s]Loading weights:  19%|█▉        | 375/1951 [00:00<00:02, 786.21it/s]Loading weights:  25%|██▌       | 491/1951 [00:00<00:01, 877.34it/s]Loading weights:  30%|██▉       | 580/1951 [00:00<00:01, 819.38it/s]Loading weights:  35%|███▍      | 680/1951 [00:00<00:01, 863.24it/s]Loading weights:  35%|███▍      | 680/1951 [00:20<00:01, 863.24it/s]Loading weights:  39%|███▊      | 755/1951 [00:23<01:35, 12.57it/s] Loading weights: 100%|██████████| 1951/1951 [00:23<00:00, 83.19it/s]
+Base model on: cpu
+CRN: 6,721,432 params | Injections: 4 at layers [7, 15, 23, 31]
+Config: MAX_LENGTH=32 | INJECT_EVERY=8 | freq=8 top_k=2
+Loading SFT-trained CRN from sft_final.pt
+Starting DPO step 0/500 | Dataset: 3000
+  Step    10/500 | Loss: 1.2285 | C: -359.75 | R: -344.25
+  Step    20/500 | Loss: 0.9678 | C: -359.00 | R: -359.00
+  Step    30/500 | Loss: 0.9551 | C: -358.00 | R: -358.00
+  Step    40/500 | Loss: 0.9807 | C: -357.50 | R: -357.50
+  Step    50/500 | Loss: 0.8013 | C: -356.00 | R: -353.75
+  Saved: dpo_50.pt
+  Step    60/500 | Loss: 0.7109 | C: -355.00 | R: -356.00
+  Step    70/500 | Loss: 1.6344 | C: -356.00 | R: -357.00
+  Step    80/500 | Loss: 0.6229 | C: -355.25 | R: -355.25
+  Step    90/500 | Loss: 0.5884 | C: -353.75 | R: -353.75
+  Step   100/500 | Loss: 1.6537 | C: -353.25 | R: -353.25
+  Saved: dpo_100.pt
+  Step   110/500 | Loss: 0.5626 | C: -353.00 | R: -353.00
+  Step   120/500 | Loss: 5.8356 | C: -352.50 | R: -352.50
+  Step   130/500 | Loss: 0.4332 | C: -351.50 | R: -369.25
+  Step   140/500 | Loss: 0.5282 | C: -349.75 | R: -349.75
+  Step   150/500 | Loss: 0.4587 | C: -349.25 | R: -349.25
+  Saved: dpo_150.pt
+  Step   160/500 | Loss: 0.3903 | C: -350.00 | R: -373.75
+  Step   170/500 | Loss: 0.5049 | C: -349.00 | R: -349.00
+  Step   180/500 | Loss: 0.3757 | C: -348.50 | R: -348.50
+  Step   190/500 | Loss: 0.3688 | C: -348.00 | R: -380.00
+  Step   200/500 | Loss: 5.3528 | C: -346.25 | R: -346.25
+  Saved: dpo_200.pt
+  Step   210/500 | Loss: 6.3878 | C: -346.50 | R: -346.50
+  Step   220/500 | Loss: 0.3580 | C: -346.25 | R: -384.00
+  Step   230/500 | Loss: 0.4243 | C: -345.50 | R: -345.50
+  Step   240/500 | Loss: 0.1518 | C: -345.25 | R: -386.25
+  Step   250/500 | Loss: 0.2848 | C: -344.25 | R: -344.25
+  Saved: dpo_250.pt
+  Step   260/500 | Loss: 6.1840 | C: -344.00 | R: -344.00
+  Step   270/500 | Loss: 2.0908 | C: -343.50 | R: -391.25
+  Step   280/500 | Loss: 0.2815 | C: -343.25 | R: -393.00
+  Step   290/500 | Loss: 1.1782 | C: -849.50 | R: -773.50
+  Step   300/500 | Loss: 0.2808 | C: -343.00 | R: -343.00
+  Saved: dpo_300.pt
+  Step   310/500 | Loss: 5.7747 | C: -840.50 | R: -364.75
+  Step   320/500 | Loss: 0.2802 | C: -342.50 | R: -342.50
+  Step   330/500 | Loss: 9.5007 | C: -342.00 | R: -398.00
+  Step   340/500 | Loss: 0.2106 | C: -341.50 | R: -398.50
+  Step   350/500 | Loss: 0.4174 | C: -341.50 | R: -341.50
+  Saved: dpo_350.pt
+  Step   360/500 | Loss: 0.2793 | C: -341.25 | R: -398.50
+  Step   370/500 | Loss: 0.2791 | C: -341.00 | R: -399.25
+  Step   380/500 | Loss: 0.5552 | C: -340.75 | R: -400.50
+  Step   390/500 | Loss: 0.4861 | C: -340.50 | R: -340.50
+  Step   400/500 | Loss: 0.2788 | C: -340.50 | R: -400.25
+  Saved: dpo_400.pt
+  Step   410/500 | Loss: 0.4169 | C: -340.25 | R: -340.25
+  Step   420/500 | Loss: 4.8660 | C: -340.00 | R: -402.50
+  Step   430/500 | Loss: 0.3476 | C: -340.00 | R: -340.00
+  Step   440/500 | Loss: 0.4168 | C: -339.75 | R: -402.50
+  Step   450/500 | Loss: 0.2784 | C: -339.75 | R: -403.00
+  Saved: dpo_450.pt
+  Step   460/500 | Loss: 4.4603 | C: -339.50 | R: -403.50
+  Step   470/500 | Loss: 4.3223 | C: -338.25 | R: -403.25
+  Step   480/500 | Loss: 0.4858 | C: -338.25 | R: -403.75
+  Step   490/500 | Loss: 0.2782 | C: -338.00 | R: -338.00
+  Step   500/500 | Loss: 0.3474 | C: -338.00 | R: -404.00
+  Saved: dpo_500.pt
+DPO done! Steps: 500 | Loss: 1.9788 | Time: 686.3min
+
+All done! Checkpoints in ./prajna/checkpoints
