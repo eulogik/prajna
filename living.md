@@ -1,8 +1,8 @@
 # Prajna — Living Document
 
 **Purpose:** Walkthrough/handoff document. Everything you need to pick up this project at any stage.  
-**Last updated:** July 11, 2026  
-**Current phase:** Phase 3 (Training) — COMPLETE ✓ SFT + DPO done
+**Last updated:** July 13, 2026  
+**Current phase:** Phase 4 (Math Reasoning) — IN PROGRESS · Release to GitHub done (private) · HF release pending token
 
 ---
 
@@ -21,7 +21,10 @@
 
 ## 1. Project Overview
 
-**Prajna** is a 2B-parameter language model with cognitive architecture innovations that runs entirely in a browser. The core thesis: architecture matters more than scale at small model sizes.
+**Prajna** is a Cognitive Resonance Network — a 6.7M-parameter cognitive adapter
+injected into the hidden states of a frozen Gemma 4 E2B (~5B params). The core thesis:
+**architecture matters more than scale** — a tiny trainable "cortex" cuts perplexity
+18× (106.85 → 6.02) on the same backbone and unlocks reasoning the base model hides.
 
 **The four pillars:**
 
@@ -353,6 +356,11 @@ Avg time:     ~7s/step
 
 **File:** `prajna-phase2/src/validate_m4.py`
 
+> **NOTE (Jul 13, 2026):** The *training that actually shipped* (Phase 3) used the
+> **multi-layer injection** design below — **40 layers, injection at 7/15/23/31,
+> 6.7M CRN params** — not the 35-layer / 46-hook prototype above. The Phase 2 specs
+> block predates the final architecture; trust the Phase 3 numbers.
+
 ### Step 4: Colab Training Pipeline (Full CRN) ✓
 
 The Colab notebook (`colab_train.ipynb`) has been rewritten to use the **actual CRN implementations** from the toy validation code, not simplified versions.
@@ -500,6 +508,64 @@ Memory: memory_sft_final.json, memory_dpo_final.json
 - HuggingFace model cache moved to external SSD `/Volumes/KIOXIA 1TB/huggingface_cache/` (HF_HOME env var)
 - Internal disk: 24GB free; KIOXIA: 400GB free
 - Training speed: ~50s/step SFT, ~60s/step DPO
+
+---
+
+## 6C. Phase 4: Math Reasoning — IN PROGRESS (July 13, 2026)
+
+### Goal
+Teach the CRN arithmetic + chain-of-thought reasoning. The base Gemma 4 E2B and the
+untrained CRN both score **0%** on held-out arithmetic (they repeat or hallucinate
+numbers). The CRN's advantage is that it is *trainable* — we test whether a small
+amount of exact math CoT data moves the needle.
+
+### What Was Built
+- `prajna-phase2/src/generate_math_data.py` — 15,000 **exact** math CoT samples
+  (answers computed in Python, never templated-wrong). Ops: add / sub / mul / div /
+  pow / algebra / multistep. Format:
+  `"Q: What is 15 * 17?\nA: We compute 15 * 17. Break 17 into 10 + 7. 15*10=150. 15*7=105. 150+105=255. The answer is 255."` + EOS.
+- `prajna-phase2/src/eval_math.py` — 10/40-problem arithmetic benchmark (5 ops),
+  parses the final answer, compares CRN vs base Gemma. Accepts a per-op count arg.
+- `prajna-phase2/src/train_mac_math_test.py` — 50-step diagnostic trainer (loads
+  `dpo_final.pt`, MAX_LENGTH=96, EOS, saves to `math_test_*.pt`). Uses `safety.safe_save`.
+- `prajna-phase2/src/safety.py` — guards against overwriting the production
+  checkpoints (`dpo_final.pt`, `sft_final.pt`, snapshots).
+
+### Diagnostic Results (so far)
+- **Baseline (dpo_final.pt, no math training):** CRN 0%, BASE 0% on 10 problems.
+  CRN *repeats the question*; base *repeats the question*. Neither computes.
+- **After 5 steps of math CoT SFT:** CRN now generates **novel math questions**
+  (e.g. "What is 236 + 125?") instead of echoing the input — a structural shift,
+  but still 0% exact accuracy. Loss ~2–3 (healthy; vocab is 262K so random ≈ 12.5).
+- **Timing:** ~140 s/step on M4 CPU (full 96-token forward + CRN backward). A 50-step
+  diagnostic ≈ 2 hours. The slower-than-generation cost is the batched 96-token base
+  forward + CRN backward (vs. per-token generation).
+
+### Open Math Questions
+| Question | Status |
+|----------|--------|
+| Does 50–200 steps of math CoT SFT raise exact accuracy above 0%? | Testing |
+| Is MAX_LENGTH=96 enough for multistep CoT? | Likely yes; monitor |
+| Is crn_mix (init 0.05) too small to override base habits? | Possible; may anneal up |
+| Should math training restart from sft_final or dpo_final? | dpo_final (current) |
+
+---
+
+## 6D. Release — GitHub (July 13, 2026)
+
+- **Private GitHub repo:** `gautamkishore/prajna` (https://github.com/gautamkishore/prajna)
+- Contains: full source, `README.md` (exciting), `dpo_final.pt` + `sft_final.pt`
+  (25 MB each, CRN params only), episodic-memory JSON.
+- **Purged from history:** `prajna_checkpoints.zip` (386 MB) via `git filter-branch`
+  before first push (GitHub 100 MB/file limit).
+- **HuggingFace:** private model repo pending — blocked on HF access token
+  (none cached on this machine). Model card drafted, ready to upload.
+
+### Backup discipline (do NOT overwrite last-known-good)
+- Production model = `dpo_final.pt` (SFT+DPO). Immutable copy on external SSD:
+  `/Volumes/KIOXIA 1TB/prajna_models/v1_production/` (SHA256-verified identical).
+- All training experiments save to `math_*.pt` / `math_final.pt` — NEVER to
+  `dpo_final.pt` / `sft_final.pt`. `safety.safe_save` enforces this.
 
 ---
 
