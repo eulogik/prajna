@@ -1,0 +1,14 @@
+Loading model for 50-step math diagnostic...
+Loading E2B student...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/1951 [00:00<?, ?it/s]Loading weights:   5%|▍         | 92/1951 [00:00<00:02, 919.58it/s]Loading weights:   9%|▉         | 184/1951 [00:00<00:01, 909.33it/s]Loading weights:  14%|█▍        | 275/1951 [00:00<00:02, 809.47it/s]Loading weights:  19%|█▉        | 375/1951 [00:00<00:02, 773.39it/s]Loading weights:  25%|██▌       | 491/1951 [00:00<00:01, 892.54it/s]Loading weights:  30%|██▉       | 583/1951 [00:00<00:01, 833.85it/s]Loading weights:  35%|███▌      | 685/1951 [00:00<00:01, 789.34it/s]Loading weights:  35%|███▌      | 685/1951 [00:20<00:01, 789.34it/s]Loading weights:  39%|███▊      | 755/1951 [00:23<01:36, 12.43it/s] Loading weights: 100%|██████████| 1951/1951 [00:23<00:00, 83.26it/s]
+CRN: 6,721,432 params | Injections: 4 at [7, 15, 23, 31]
+Starting 50-step math diagnostic...
+  step 1/50 loss=2.8359 (141.1s elapsed, 141.1s/step)
+  step 2/50 loss=3.2520 (277.4s elapsed, 138.7s/step)
+  step 3/50 loss=1.8564 (413.6s elapsed, 137.9s/step)
+  step 4/50 loss=1.6250 (549.8s elapsed, 137.4s/step)
+  step 5/50 loss=1.1826 (683.3s elapsed, 136.7s/step)
+  step 6/50 loss=0.9570 (819.0s elapsed, 136.5s/step)
+  step 7/50 loss=2.1758 (955.0s elapsed, 136.4s/step)
+  step 8/50 loss=1.0928 (1090.4s elapsed, 136.3s/step)

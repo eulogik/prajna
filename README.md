@@ -111,6 +111,9 @@ student.load_memory('prajna/checkpoints/memory_dpo_final.json')
 > **Model weights** (`dpo_final.pt`, 25 MB) are included in this repo under
 > `prajna/checkpoints/`. The base Gemma 4 E2B is downloaded automatically from
 > HuggingFace (set `HF_HOME` to an external disk if space is tight — the base is ~10 GB).
+>
+> **Private HuggingFace mirror:** https://huggingface.co/eulogik/prajna
+> (model card + adapter weights, ready to load with `crn_components.py`).
 
 ---
 

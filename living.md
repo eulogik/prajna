@@ -558,8 +558,10 @@ amount of exact math CoT data moves the needle.
   (25 MB each, CRN params only), episodic-memory JSON.
 - **Purged from history:** `prajna_checkpoints.zip` (386 MB) via `git filter-branch`
   before first push (GitHub 100 MB/file limit).
-- **HuggingFace:** private model repo pending — blocked on HF access token
-  (none cached on this machine). Model card drafted, ready to upload.
+- **HuggingFace:** private model repo **LIVE** → https://huggingface.co/eulogik/prajna
+  (uploaded `dpo_final.pt`, `crn_components.py`, `memory_dpo_final.json`, model card).
+  Originally created under `GautamKishore/prajna`, then moved to the `eulogik` org
+  per request and the old repo deleted.
 
 ### Backup discipline (do NOT overwrite last-known-good)
 - Production model = `dpo_final.pt` (SFT+DPO). Immutable copy on external SSD:
