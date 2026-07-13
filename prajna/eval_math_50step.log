@@ -1,0 +1,14 @@
+MATH DIAGNOSTIC EVAL — math_test_50.pt (50-step math CoT SFT on dpo_final.pt)
+Evaluated: Jul 13, 2026 | 10 problems (2/op x 5 ops) | seed=123 | greedy
+
+CRN accuracy: 10.0%   BASE accuracy: 0.0%
+  add : CRN 0%   BASE 0%
+  sub : CRN 50%  BASE 0%   (517-69=448 correct)
+  mul : CRN 0%   BASE 0%
+  div : CRN 0%   BASE 0%
+  pow : CRN 0%   BASE 0%
+
+Baseline (dpo_final.pt, no math training): CRN 0% / BASE 0%.
+Verdict: 50 steps (only ~50 samples at batch=1) raised 0% -> 10%,
+sub 0% -> 50%. Direction correct; needs 1000s of steps to generalize.
+Generation still emits number/counting sequences, not "The answer is X".

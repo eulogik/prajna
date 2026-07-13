@@ -1,0 +1,11 @@
+MATH DIAGNOSTIC EVAL — math_test_50.pt WITH "\n\n" SEPARATOR (training-format prefix)
+Evaluated: Jul 13, 2026 | 10 problems | seed=123 | greedy
+
+CRN accuracy: 0.0%   BASE accuracy: 0.0%
+  add/sub/mul/div/pow : all 0%
+
+Feeding the model the training-format prefix "What is X?\n\n" did NOT help —
+model emitted digit/counting salads (e.g. "678 78 67 8 7 8 6 7 8...").
+Confirms the model had not learned the "The answer is X" template; the 10%
+without-separator score was mostly a lucky greedy path on subtraction.
+Fix for full run: train on bare "prompt -> answer" (no "\n\n") so zero-shot eval matches.

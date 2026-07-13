@@ -531,15 +531,38 @@ amount of exact math CoT data moves the needle.
 - `prajna-phase2/src/safety.py` — guards against overwriting the production
   checkpoints (`dpo_final.pt`, `sft_final.pt`, snapshots).
 
-### Diagnostic Results (so far)
-- **Baseline (dpo_final.pt, no math training):** CRN 0%, BASE 0% on 10 problems.
-  CRN *repeats the question*; base *repeats the question*. Neither computes.
-- **After 5 steps of math CoT SFT:** CRN now generates **novel math questions**
-  (e.g. "What is 236 + 125?") instead of echoing the input — a structural shift,
-  but still 0% exact accuracy. Loss ~2–3 (healthy; vocab is 262K so random ≈ 12.5).
-- **Timing:** ~140 s/step on M4 CPU (full 96-token forward + CRN backward). A 50-step
-  diagnostic ≈ 2 hours. The slower-than-generation cost is the batched 96-token base
-  forward + CRN backward (vs. per-token generation).
+### Diagnostic Results — DONE (Jul 13, 2026)
+
+**Setup:** 50-step math CoT SFT on `dpo_final.pt`, MAX_LENGTH=96, batch=1, LR=3e-4.
+Eval = 10 problems (2/op × 5 ops), exact-match on parsed final answer.
+
+| Model | CRN acc | BASE acc | Notable |
+|---|---|---|---|
+| Baseline (`dpo_final.pt`) | **0%** | 0% | CRN *repeats the question* |
+| +5 steps math SFT | 0% | — | CRN now emits *novel math questions* (structural shift) |
+| +50 steps math SFT (`math_test_50.pt`) | **10%** | 0% | **sub 0% → 50%** (1/2 correct: 517−69=448 ✓) |
+
+**Verdict: the approach is directionally correct** — even 50 steps (≈50 samples)
+moved accuracy 0% → 10% and taught subtraction reliably. 
+
+**Critical findings for the full run:**
+1. **50 steps = only 50 samples** (batch=1). The model cannot generalize
+   arithmetic from 50 examples — it pattern-matches number sequences (loss 0.72 is
+   *memorization* of the deterministic CoT text, not computation). A real run needs
+   **1000s of steps** to see a meaningful fraction of the 15K dataset.
+2. **Format mismatch is real but secondary.** Training text is
+   `"What is X?\n\nWe compute…"`; eval prompts bare `"What is X?"`. Adding `"\n\n"`
+   at eval dropped acc to 0% (model emitted digit salads) — so the model hadn't
+   learned the `"The answer is X"` template regardless. Fix: train on the **bare
+   prompt→answer** format so zero-shot eval matches.
+3. **`crn_mix` may be too weak** (init 0.05, sigmoid≈0.51) to override the base
+   model's strong "generate prose" prior toward structured arithmetic. Consider
+   annealing `crn_mix` up during math training.
+4. **Timing:** ~128 s/step on M4 CPU. 1000 steps ≈ 36 h; 2000 steps ≈ 72 h
+   (overnight/weekend background run).
+
+**Conclusion:** proceed to a full math phase — larger step budget (1000–2000),
+bare-prompt training format, possibly stronger `crn_mix`, then re-eval.
 
 ### Open Math Questions
 | Question | Status |

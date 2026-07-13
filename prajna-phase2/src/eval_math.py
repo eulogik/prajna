@@ -12,6 +12,7 @@ from crn_components import PrajnaStudentMultiLayer
 
 CKPT = sys.argv[1] if len(sys.argv) > 1 else './prajna/checkpoints/dpo_final.pt'
 PER_OP = int(sys.argv[2]) if len(sys.argv) > 2 else 8  # problems per operation
+SEP = (len(sys.argv) > 3 and sys.argv[3] == '1')  # append "\n\n" (training format) before gen
 MEM = './prajna/checkpoints/memory_dpo_final.json'
 DEVICE = 'cpu'
 MAX_NEW = 48  # room for CoT (greedy, shorter for speed)
@@ -81,7 +82,8 @@ def main():
     by_op_crn = {}; by_op_base = {}
     print(f"\n{'OP':6} {'CRN':>6} {'BASE':>6}  example")
     for prompt, answer, op in probs:
-        ids = tok(prompt, return_tensors='pt').input_ids
+        pp = prompt + "\n\n" if SEP else prompt
+        ids = tok(pp, return_tensors='pt').input_ids
         gc = generate_crn(student, ids)
         gb = generate_base(student, ids)
         crn_text = tok.decode(gc[0], skip_special_tokens=True)[len(prompt):].strip()
