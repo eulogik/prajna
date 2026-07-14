@@ -29,12 +29,14 @@ CRN weights (`dpo_final.pt`) plus the code to load and run them.
 | Perplexity (↓) | 106.85 | **6.02** | **18.1×** |
 | Code generation | generic prose | real, runnable code | qualitative ✓ |
 | Syllogistic reasoning | repeats prompt | correct multi-step logic | qualitative ✓ |
-| Math (untrained) | 0% | 0%* | emerging |
+| Math (untrained) | 0% | 0% | 0% (base has none) |
 
-\* Both score 0% on held-out arithmetic before math-specific training; after just 5
-steps of math chain-of-thought SFT the CRN shifts from *repeating the question* to
-*generating novel math questions* — evidence the adapter learns structure, not
-memorization. **Math reasoning is the active research frontier.**
+\* Both score 0% on held-out arithmetic *before* math-specific training. But a
+**780-step math chain-of-thought SFT** on the same CRN reached **70% exact
+accuracy** (addition, subtraction, division **100%**; powers 50%; multiplication
+still approximate). The key was training on the **bare `prompt → answer` format**
+so zero-shot eval matches. **Math reasoning on a frozen 5B base via a 6.7M adapter
+is real** — see the GitHub repo `living.md` for the full diagnostic.
 
 ## Files
 

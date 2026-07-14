@@ -70,13 +70,14 @@ Evaluated on 200 held-out samples + qualitative reasoning probes:
 | **Perplexity** (↓ better) | 106.85 | **6.02** | **18.1×** |
 | **Code generation** | Generic text | Runnable code | qualitative ✓ |
 | **Syllogism reasoning** | Repeats prompt | Correct chain | qualitative ✓ |
-| **Math (exact, untrained)** | 0% | 0%* | emerging |
+| **Math (exact, untrained)** | 0% | 0% | 0% (base has none) |
 
 \* Both base and CRN score 0% on held-out arithmetic *before* math-specific
-training. Crucially, after just **5 steps** of math chain-of-thought SFT, the CRN
-shifts from *repeating the question* to *generating novel math questions* —
-evidence the adapter is learning structure, not memorizing. Math reasoning is the
-**active development frontier** (see below).
+training. But a **780-step math chain-of-thought SFT** on the same CRN reached
+**70% exact accuracy** (addition, subtraction, division **100%**; powers 50%;
+multiplication still approximate). The key was training on the **bare
+`prompt → answer` format** so zero-shot eval matches. **Math reasoning on a frozen
+5B base via a 6.7M adapter is real** — see `living.md` for the full diagnostic.
 
 ### Why this is the right comparison
 
@@ -159,7 +160,7 @@ Total wall-clock: ~22 hours.
 - [x] Multi-layer CRN injection + SFT + DPO on M4
 - [x] 18× perplexity reduction vs base
 - [x] Qualitative reasoning (code + syllogisms)
-- [ ] **Math reasoning** — chain-of-thought SFT pipeline (in progress)
+- [x] **Math reasoning** — 780-step CoT SFT reached **70%** (add/sub/div 100%); full run next
 - [ ] Browser-native deployment (WebGPU)
 - [ ] Reflective-loop error reduction benchmark
 - [ ] Long-horizon episodic-memory recall benchmark

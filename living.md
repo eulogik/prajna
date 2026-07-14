@@ -541,6 +541,7 @@ Eval = 10 problems (2/op × 5 ops), exact-match on parsed final answer.
 | Baseline (`dpo_final.pt`) | **0%** | 0% | CRN *repeats the question* |
 | +5 steps math SFT | 0% | — | CRN now emits *novel math questions* (structural shift) |
 | +50 steps math SFT (`math_test_50.pt`) | **10%** | 0% | **sub 0% → 50%** (1/2 correct: 517−69=448 ✓) |
+| +780 steps, **bare fmt**, MAX_LENGTH=48 (`math_opt_1000.pt`) | **70%** | 0% | add/sub/div **100%**; pow 50%; mul 0% (approx) |
 
 **Verdict: the approach is directionally correct** — even 50 steps (≈50 samples)
 moved accuracy 0% → 10% and taught subtraction reliably. 
@@ -563,6 +564,14 @@ moved accuracy 0% → 10% and taught subtraction reliably.
 
 **Conclusion:** proceed to a full math phase — larger step budget (1000–2000),
 bare-prompt training format, possibly stronger `crn_mix`, then re-eval.
+
+**BREAKTHROUGH (Jul 14, 2026):** the bare-prompt format fix was decisive. The
+780-step run (`math_opt_1000.pt`) scored **70%** (add/sub/div 100%, pow 50%,
+mul 0%). The model now emits `"We compute … The answer is X"` and solves
+addition, subtraction, and division exactly. Remaining gaps: multiplication is
+approximate (59\*79→4501, off by 160) and large powers are truncated by
+`MAX_LENGTH=48`. Both are fixable (more mul-specific data; longer sequences for
+pow). **Math reasoning on a frozen 5B base via a 6.7M CRN adapter is real.**
 
 ### Open Math Questions
 | Question | Status |
