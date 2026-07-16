@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from crn_components import (PrajnaStudentMultiLayer, CRN_PREFIXES, get_crn_state_dict)
 
 DEVICE = 'cpu'
-CKPT = './prajna/checkpoints/dpo_final.pt'
+CKPT = os.environ.get('CRN_CKPT', './prajna/checkpoints/dpo_final.pt')
 MEM = './prajna/checkpoints/memory_dpo_final.json'
 
 # ---- Test prompts ----
@@ -146,7 +146,7 @@ print("EVALUATION")
 print("="*60)
 
 t0 = time.time()
-PPL_CACHE = './prajna/eval_ppl_cache.json'
+PPL_CACHE = f'./prajna/eval_ppl_cache_{os.path.basename(CKPT)}.json'
 if os.path.exists(PPL_CACHE):
     with open(PPL_CACHE) as f:
         base_ppl, crn_ppl = json.load(f)

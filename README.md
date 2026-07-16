@@ -1,30 +1,38 @@
 # 🧠 Prajna — Cognitive Resonance Network (CRN)
 
-> **Architecture beats scale.** A 6.7M-parameter cognitive adapter that turns a frozen
-> Gemma 4 E2B into a model that *reasons* — dropping perplexity from **106.85 → 6.02**
-> (an **18× improvement**) on the same backbone, while the base model alone produces
-> generic, repetitive text.
+> **A 6.7M-parameter trainable adapter injected into the hidden states of a frozen
+> Gemma 4 E2B.** On its *training-distribution* text, the CRN cuts perplexity from
+> **106.85 → 6.02 (≈18× lower)** versus the frozen base. This is a **corpus-specialist**
+> result: the adapter compresses a target domain extremely well, but does **not**
+> improve general reasoning or out-of-distribution capability.
 
 Prajna is a **Cognitive Resonance Network**: a small, trainable "cortex" injected into
-the hidden states of a frozen large language model. The base model keeps all its
-knowledge; Prajna adds **structured reasoning, episodic memory, reflective
-self-correction, and composable skills** — without retraining the 5B-parameter base.
+the hidden states of a frozen large language model. The base model is kept frozen
+(`no_grad`); only the CRN receives gradients. The CRN adds **resonance attention,
+composable skills, a reflective loop, and episodic memory** as corrections applied to
+the base's intermediate hidden states.
+
+> ⚠️ **Honest scope.** The ≈18× perplexity reduction is measured **in-distribution**
+> (held-out samples from the training corpus). On generic text the same CRN makes the
+> base ~3× *worse* (bpb 2.04 vs 0.67), and on standard benchmarks (MMLU/BoolQ/HellaSwag)
+> it performs at or below the frozen base. The adapter is a **parameter-efficient
+> domain specialist**, not a general reasoning boost. See `RESULTS.md` for the full,
+> unvarnished evaluation.
 
 ---
 
-## ✨ What Makes It Different
+## ✨ What It Does (and Doesn't)
 
-| Capability | Base Gemma 4 E2B | Prajna (CRN + Gemma) |
+| Capability | Result | Evidence |
 |---|---|---|
-| Perplexity (held-out) | **106.85** | **6.02** ⚡ 18× better |
-| Code generation | Generic prose | **Real, runnable code** |
-| Syllogistic reasoning | Repeats the prompt | **Correct multi-step logic** |
-| Arithmetic (untrained) | 0% | 0% (but *structurally responsive*) |
-| Memory across sessions | None | **Persistent episodic memory** |
-| Trainable params | 5.1B (frozen) | **6.7M** (1.3% of base) |
+| Perplexity on training corpus | **106.85 → 6.02** (≈18×) | `eval_mac.py`, in-distribution |
+| Perplexity on generic text | **worse** (~3×) | bpb test, out-of-distribution |
+| MMLU / BoolQ / HellaSwag | at or below frozen base | `bench_standard.py` |
+| Implicit-goal / car-wash reasoning | **does not generalize** | reworded-prompt probe, 0/8 |
+| Trainable params | **6.7M** (0.3% of base) | `crn_components.py` |
 
 The CRN is trained with **SFT + DPO** entirely on a **Mac Mini M4 (16GB, CPU)** —
-no GPU, no cloud bill. Training took ~22 hours across 2,500 steps.
+no GPU, no cloud bill.
 
 ---
 
@@ -61,32 +69,49 @@ Output logits (262K vocab)
 
 ## 📊 Benchmarks
 
-### Primary result — same backbone, with vs. without CRN (ablative)
+> Full details, including the failures, are in `RESULTS.md`. The summary below is the
+> honest version.
 
-Evaluated on 200 held-out samples + qualitative reasoning probes:
+### Primary result — same backbone, in-distribution (ablative)
 
-| Metric | Base Gemma 4 E2B | Prajna CRN | Improvement |
+Evaluated on 200 held-out samples from the training corpus:
+
+| Metric | Base Gemma 4 E2B | Prajna CRN | Result |
 |---|---|---|---|
-| **Perplexity** (↓ better) | 106.85 | **6.02** | **18.1×** |
-| **Code generation** | Generic text | Runnable code | qualitative ✓ |
-| **Syllogism reasoning** | Repeats prompt | Correct chain | qualitative ✓ |
-| **Math (exact, untrained)** | 0% | 0% | 0% (base has none) |
+| **Perplexity** (↓ better) | 106.85 | **6.02** | **≈18× lower** (in-distribution) |
 
-\* Both base and CRN score 0% on held-out arithmetic *before* math-specific
-training. But a **780-step math chain-of-thought SFT** on the same CRN reached
-**70% exact accuracy** (addition, subtraction, division **100%**; powers 50%;
-multiplication still approximate). The key was training on the **bare
-`prompt → answer` format** so zero-shot eval matches. **Math reasoning on a frozen
-5B base via a 6.7M adapter is real** — see `living.md` for the full diagnostic.
+**Per-injection ablation** (disabling one CRN injection, measured on held-out
+training text) shows the gain is concentrated in early/mid layers:
 
-### Why this is the right comparison
+| Disable injection @ layer | Perplexity | Δ vs full |
+|---|---|---|
+| 7  | 13.93 | +9.99 |
+| 15 | 7.65  | +3.71 |
+| 23 | 4.61  | +0.67 |
+| 31 | 4.51  | +0.57 |
 
-Prajna is an **adapter**, not a standalone model. The honest, fair benchmark is the
-**same frozen backbone with and without the CRN** — that isolates the contribution
-of the cognitive architecture. Against the broader small-LLM landscape
-(Llama-3.2-3B, Qwen2.5-3B, Gemma-2-2B), Prajna's thesis is complementary: it shows
-that a *tiny* trainable cortex can unlock reasoning the base model hides, at 1.3% of
-the base's parameter count and a fraction of the training cost.
+### Out-of-distribution — where it does NOT help
+
+| Benchmark | Prajna 2B+CRN | Frozen base | Note |
+|---|---|---|---|
+| MMLU (40) | 65% | 58% | small win (knowledge) |
+| BoolQ (40) | 65% | 75% | CRN hurts |
+| HellaSwag (40) | 15% | 20% | CRN hurts |
+| Generic text bpb | 2.04 | 0.67 | CRN ~3× worse |
+| Car-wash / IGR (reworded) | 0/8 | — | **no generalization** |
+
+The car-wash / implicit-goal test (often cited as "76% of models fail") is **not**
+passed by this model: on the original phrasing 3/8 "passed" only via a loose
+substring match in the eval script (the model actually hedges or answers wrong);
+on **reworded** prompts it scored **0/8**. The CRN memorizes surface patterns, it
+does not perform implicit-goal reasoning.
+
+### What this means
+
+Prajna is a **parameter-efficient domain specialist**: a 6.7M adapter that compresses
+a target corpus dramatically better than the frozen base, at 0.3% of the base's
+params and a fraction of the training cost. It is **not** a general reasoning
+improvement, and should not be presented as one.
 
 ---
 
@@ -150,17 +175,19 @@ Prajna/
 | SFT | 2000 | 0.2262 | 27,400 teacher samples |
 | DPO | 500 | 1.9788 | C=−338 > R=−404 (prefers chosen) |
 
-Hardware: **Mac Mini M4, 16GB, CPU only** (MPS OOMs on the 10.2 GB base).
-Total wall-clock: ~22 hours.
+Hardware: **Mac Mini M4, 16GB, CPU only**. The wrapped `PrajnaStudentMultiLayer`
+model is **not usable on MPS** (the Gemma-4-E2B embedding raises *"Placeholder
+storage has not been allocated on MPS device!"*); all training/eval runs on CPU+fp16.
+Total wall-clock for the SFT+DPO run: ~22 hours.
 
 ---
 
 ## 🧭 Roadmap
 
-- [x] Multi-layer CRN injection + SFT + DPO on M4
-- [x] 18× perplexity reduction vs base
-- [x] Qualitative reasoning (code + syllogisms)
-- [x] **Math reasoning** — 780-step CoT SFT reached **70%** (add/sub/div 100%); full run next
+- [x] Multi-layer CRN injection + SFT + DPO on M4 (CPU)
+- [x] ≈18× in-distribution perplexity reduction vs frozen base (corpus-specialist)
+- [x] Honest evaluation: ablation, OOD benchmark, reworded-prompt generalization probe
+- [ ] Research pivot: make the CRN *generalize* (validate on reworded held-out prompts, fix eval to check answers not substrings)
 - [ ] Browser-native deployment (WebGPU)
 - [ ] Reflective-loop error reduction benchmark
 - [ ] Long-horizon episodic-memory recall benchmark

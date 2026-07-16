@@ -205,8 +205,12 @@ class PrajnaStudentMultiLayer(nn.Module):
         gc.collect()
         print('Loading E2B student...')
         self.tok = AutoTokenizer.from_pretrained('google/gemma-4-E2B')
+        # NOTE: low_cpu_mem_usage=False materializes weights on CPU before moving
+        # to the target device. With low_cpu_mem_usage=True the gemma-4-E2B
+        # embedding stays a meta-tensor and .to('mps') raises
+        # "Placeholder storage has not been allocated on MPS device!".
         self.base_model = AutoModelForCausalLM.from_pretrained(
-            'google/gemma-4-E2B', dtype=torch.float16, low_cpu_mem_usage=True)
+            'google/gemma-4-E2B', dtype=torch.float16, low_cpu_mem_usage=False)
         for p in self.base_model.parameters():
             p.requires_grad = False
         self.vocab = 262144
@@ -226,15 +230,23 @@ class PrajnaStudentMultiLayer(nn.Module):
         self.resonance = ResonanceAttention(d_model=self.d_model, num_heads=4, num_frequencies=num_frequencies, top_k=top_k).to(crn_dev)
         print(f'CRN: {sum(p.numel() for p in self.get_params()):,} params | Injections: {self.num_injections} at {self.inject_indices}')
 
-    def _collect_hidden(self, input_ids):
+    def _collect_hidden(self, input_ids, past_key_values=None):
         with torch.no_grad():
-            outputs = self.base_model(input_ids=input_ids, use_cache=False,
+            outputs = self.base_model(input_ids=input_ids, use_cache=True,
+                past_key_values=past_key_values,
                 output_attentions=False, output_hidden_states=True, return_dict=True)
-            collected = {idx: outputs.hidden_states[layer_idx + 1]
-                         for idx, layer_idx in enumerate(self.inject_indices)}
-            final_hidden = outputs.hidden_states[-1]
-            del outputs
-        return {'collected': collected, 'final_hidden': final_hidden}
+            hs = outputs.hidden_states
+            if past_key_values is None:
+                collected = {idx: hs[layer_idx + 1]
+                             for idx, layer_idx in enumerate(self.inject_indices)}
+                final_hidden = hs[-1]
+            else:
+                collected = {idx: hs[layer_idx + 1][:, -1:]
+                             for idx, layer_idx in enumerate(self.inject_indices)}
+                final_hidden = hs[-1][:, -1:]
+            past = outputs.past_key_values
+            del outputs, hs
+        return {'collected': collected, 'final_hidden': final_hidden, 'past': past}
 
     def _apply_crn(self, outputs, training=False):
         collected = outputs['collected']

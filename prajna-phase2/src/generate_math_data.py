@@ -22,14 +22,19 @@ def sub(a, b):
             f"We compute {a} - {b}. {a} - {b} = {s}. The answer is {s}.")
 
 def mul(a, b):
-    t, u = b // 10, b % 10
-    if t > 0:
-        p1, p2, s = a * t * 10, a * u, a * b
-        return (f"What is {a} * {b}?",
-                f"We compute {a} * {b}. Break {b} into {t*10} + {u}. "
-                f"{a} * {t*10} = {p1}. {a} * {u} = {p2}. {p1} + {p2} = {s}. "
-                f"The answer is {s}.")
     s = a * b
+    t1, u1 = a // 10, a % 10
+    t2, u2 = b // 10, b % 10
+    # Place-value split of ONE operand: each product is a 2-digit x 1-digit
+    # (or 2-digit x 2-digit-with-trailing-zero) — easy, and phrased distinctly
+    # from add/sub so the model does not conflate the schemas.
+    if t1 > 0 and t2 > 0:
+        p1, p2 = a * (t2 * 10), a * u2
+        return (f"What is {a} * {b}?",
+                f"We compute {a} * {b}. Split {b} into {t2*10} + {u2}. "
+                f"{a} * {t2*10} = {p1}. {a} * {u2} = {p2}. "
+                f"{p1} + {p2} = {s}. The answer is {s}.")
+    # one operand single-digit -> direct product
     return (f"What is {a} * {b}?",
             f"We compute {a} * {b}. {a} * {b} = {s}. The answer is {s}.")
 
@@ -45,10 +50,16 @@ def div(a, b):
 
 def pow_(a, b):
     s = a ** b
-    steps = " * ".join([str(a)] * b)
+    # fully step-by-step with explicit x between each easy 2-digit product
+    parts = [f"{a}^1 = {a}"]
+    cur = a
+    for i in range(2, b + 1):
+        nxt = cur * a
+        parts.append(f"{cur} x {a} = {nxt}")
+        cur = nxt
     return (f"What is {a}^{b}?",
-            f"We compute {a}^{b}. {a}^{b} = {steps} = {s}. "
-            f"The answer is {s}.")
+            f"We compute {a}^{b}. " + ". ".join(parts) +
+            f". The answer is {s}.")
 
 def algebra():
     a = random.randint(2, 9)
@@ -68,9 +79,10 @@ def multistep():
 
 # ---- Build dataset ----
 generators = [add, sub, mul, div, pow_, algebra, multistep]
+weights = [1, 1, 1.5, 1, 1.5, 1, 1]   # mild emphasis on mul & pow (weak ops)
 samples = []
 for _ in range(N):
-    g = random.choice(generators)
+    g = random.choices(generators, weights=weights, k=1)[0]
     if g is add:
         p, r = g(random.randint(1, 999), random.randint(1, 999))
     elif g is sub:

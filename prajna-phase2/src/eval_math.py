@@ -14,8 +14,8 @@ CKPT = sys.argv[1] if len(sys.argv) > 1 else './prajna/checkpoints/dpo_final.pt'
 PER_OP = int(sys.argv[2]) if len(sys.argv) > 2 else 8  # problems per operation
 SEP = (len(sys.argv) > 3 and sys.argv[3] == '1')  # append "\n\n" (training format) before gen
 MEM = './prajna/checkpoints/memory_dpo_final.json'
-DEVICE = 'cpu'
-MAX_NEW = 48  # room for CoT (greedy, shorter for speed)
+DEVICE = os.environ.get('CRN_DEVICE', 'cpu')
+MAX_NEW = 96  # room for step-wise power CoT; must exceed trained CoT length or parses truncate
 
 # ---- test problems (not in training template seed necessarily) ----
 def gen_problems():
@@ -71,6 +71,7 @@ def main():
     student = PrajnaStudentMultiLayer(device=DEVICE, inject_every=8, max_length=96,
         num_frequencies=8, top_k=2, num_skills=32, skill_rank=4,
         num_corrections=8, mem_size=256, mem_dim=64)
+    student = student.to(DEVICE)   # move base model + crn_mix onto MPS
     ckpt = torch.load(CKPT, map_location=DEVICE, weights_only=False)
     student.load_state_dict(ckpt['crn'], strict=False)
     if os.path.exists(MEM): student.load_memory(MEM)
@@ -83,11 +84,11 @@ def main():
     print(f"\n{'OP':6} {'CRN':>6} {'BASE':>6}  example")
     for prompt, answer, op in probs:
         pp = prompt + "\n\n" if SEP else prompt
-        ids = tok(pp, return_tensors='pt').input_ids
+        ids = tok(pp, return_tensors='pt').input_ids.to(DEVICE)
         gc = generate_crn(student, ids)
         gb = generate_base(student, ids)
-        crn_text = tok.decode(gc[0], skip_special_tokens=True)[len(prompt):].strip()
-        base_text = tok.decode(gb[0], skip_special_tokens=True)[len(prompt):].strip()
+        crn_text = tok.decode(gc[0].cpu(), skip_special_tokens=True)[len(prompt):].strip()
+        base_text = tok.decode(gb[0].cpu(), skip_special_tokens=True)[len(prompt):].strip()
         crn_ans = parse_answer(crn_text)
         base_ans = parse_answer(base_text)
         crn_ok = crn_ans == answer
