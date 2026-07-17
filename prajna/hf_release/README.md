@@ -64,16 +64,14 @@ repo: https://github.com/eulogik/prajna
 hf_repo: https://huggingface.co/eulogik/prajna
 ---
 
+<!-- Badges -->
+| [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-eulogik%2Fprajna-yellow)](https://huggingface.co/eulogik/prajna) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0) [![Params](https://img.shields.io/badge/params-6.7M%20(0.3%25%20of%20base)-green)](https://huggingface.co/eulogik/prajna) [![Base](https://img.shields.io/badge/base-google%2Fgemma--4--E2B-orange)](https://huggingface.co/google/gemma-4-E2B) [![Perplexity](https://img.shields.io/badge/in--distribution%20ppl-106.85%E2%86%9218%C3%97%20lower-brightgreen)](https://huggingface.co/eulogik/prajna) [![Hardware](https://img.shields.io/badge/trained%20on-Mac%20Mini%20M4%20(CPU)-lightgrey)](https://huggingface.co/eulogik/prajna) [![Status](https://img.shields.io/badge/status-open--weights%20%2F%20research-orange)](https://huggingface.co/eulogik/prajna) [![GitHub](https://img.shields.io/badge/GitHub-eulogik%2Fprajna-black)](https://github.com/eulogik/prajna) |
+|:--|
+
 <!-- SEO / discovery -->
 **Prajna CRN** by [@eulogik](https://huggingface.co/eulogik) ·
 Repo: [github.com/eulogik/prajna](https://github.com/eulogik/prajna) ·
 Model: [huggingface.co/eulogik/prajna](https://huggingface.co/eulogik/prajna)
-
-# 🧠 Prajna CRN — Cognitive Resonance Network adapter for Gemma 4 E2B
-
-> **Open weights · 6.7M params · 18× in-distribution perplexity · CPU-trained on a Mac Mini M4.**
-> A tiny trainable "cortex" that corrects a *frozen* Gemma 4 E2B from its hidden states —
-> the honest, reproducible experiment in parameter-efficient model specialization.
 
 # 🧠 Prajna CRN — Cognitive Resonance Network adapter for Gemma 4 E2B
 

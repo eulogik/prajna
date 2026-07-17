@@ -1,8 +1,8 @@
 # Prajna — Living Document
 
 **Purpose:** Walkthrough/handoff document. Everything you need to pick up this project at any stage.  
-**Last updated:** July 13, 2026  
-**Current phase:** Phase 4 (Math Reasoning) — IN PROGRESS · Release to GitHub done (private) · HF release pending token
+**Last updated:** July 17, 2026  
+**Current phase:** Prajna-2B Phase 1 (wire in ReflectiveLoop + error-correction training) — IN PROGRESS · HF model public (open-weights) · GitHub private
 
 ---
 
@@ -24,16 +24,23 @@
 **Prajna** is a Cognitive Resonance Network — a 6.7M-parameter cognitive adapter
 injected into the hidden states of a frozen Gemma 4 E2B (~5B params). The core thesis:
 **architecture matters more than scale** — a tiny trainable "cortex" cuts perplexity
-18× (106.85 → 6.02) on the same backbone and unlocks reasoning the base model hides.
+~18× (106.85 → 6.02) **in-distribution** on the same backbone.
+
+> **Honest scope (updated Jul 17):** the 18× is on held-out *training-corpus* text, not
+> general capability. On generic text the CRN is ~3× *worse* (bpb 2.04 vs 0.67), and it
+> does **not** perform implicit-goal reasoning (car-wash reworded probe: 0/8). The
+> "unlocks reasoning" claim was a keyword-match artifact and has been retracted. See
+> `RESULTS.md` for the unvarnished evaluation. Prajna-2B Phase 1 (below) targets making
+> the ReflectiveLoop actually do error-correction.
 
 **The four pillars:**
 
 | Pillar | What It Does | Why It Matters |
 |--------|-------------|----------------|
-| **Resonance Attention** | Frequency-modulated attention with interpretable cognitive bands | 60-80% compute reduction, native interpretability |
-| **Episodic Memory** | Cross-session persistent memory (save/load to disk) | Model remembers across conversations |
-| **Reflective Loop** | Latent-space self-correction (zero token overhead) | Model catches and fixes its own errors |
-| **Skill Composition** | 64 composable skills via low-rank perturbations | Dynamic capability mixing without MoE overhead |
+| **Resonance Attention** | Frequency-modulated attention with interpretable cognitive bands | Native interpretability (O(n²) in shipped version, not the promised O(n·k)) |
+| **Episodic Memory** | Cross-session persistent memory (save/load to disk) | Model remembers across conversations (only tested at 8 facts) |
+| **Reflective Loop** | Latent-space self-correction — **now wired into `_apply_crn` (was unused before Phase 1)** | Goal: model catches and fixes its own errors (unverified — Phase 1 tests this) |
+| **Skill Composition** | 32 composable skills via low-rank perturbations | Dynamic capability mixing without MoE overhead |
 
 **Base model:** Gemma 4 E2B (Google, 5.1B total params with PLE, Apache 2.0)  
 **Hardware:** Mac Mini M4 16GB  
@@ -653,6 +660,72 @@ Whenever a GCP instance is created for training:
 | Contrastive loss for reflective loop | Jul 1, 2026 | Review feedback: threshold needs training signal |
 | Load balancing for skill router | Jul 1, 2026 | Router collapses without it |
 | Apache 2.0 for weights | Jul 1, 2026 | Standard, maximizes adoption |
+| MPS unusable for wrapped model (Gemma-4 embedding "placeholder storage" bug) | Jul 15, 2026 | All training/eval on CPU + fp16 (emulated) |
+| HF download count needs `config.json` query file | Jul 16, 2026 | Added `config.json` to HF repo so downloads track |
+| Wire ReflectiveLoop into `_apply_crn` (was never called) | Jul 17, 2026 | Phase 1 — make self-correction actually function |
+
+---
+
+## 7b. Prajna-2B Phase 1 — Wire in ReflectiveLoop + Error-Correction Training
+
+**Goal:** Make the CRN do something the frozen base cannot — **self-correct its own
+errors** — instead of merely compressing its training distribution.
+
+**Why this phase exists (root-cause analysis, Jul 17):**
+1. The **ReflectiveLoop was never called** in `_apply_crn()` — only `resonance` and
+   `skills` were applied. The "self-correction" pillar was architecturally present but
+   functionally absent. The CRN was a pure feedforward compressor, not a reasoner.
+2. The training loss (SFT/DPO on the training corpus) rewards **compression**, not
+   reasoning. To get error-correction we must train on **base-model mistakes**.
+
+### Architecture change (`crn_components.py`)
+- Added `self.reflection_gate = nn.Parameter(full(num_injections, 0.15))` — a separate
+  gate for the ReflectiveLoop so it can be ablated independently of `crn_mix`.
+- In `_apply_crn()`: `ref_out = self.reflection(h, return_correction_id=True)` → extract
+  `ref_correction = ref_corrected - h`, then `correction = mix*(r+s) + ref_mix*ref_correction`.
+- Added `'reflection_gate'` to `CRN_PREFIXES` so it is saved in checkpoints.
+- `get_params()` includes `reflection_gate` (so it trains).
+
+### Dataset (`gen_error_correction.py` → `prajna/data/error_correction_pairs.json`)
+- Run the **frozen base** Gemma-4-E2B on prompts; keep only cases where base is WRONG.
+- Emit DPO pairs: `chosen` = correct answer, `rejected` = base's wrong output.
+- Sources: `math_v1_fresh.json` (84K), `facts_cot.json` (196), `igr_cot.json` (1820).
+- **Result: 360 pairs** (120 math + 120 facts + 120 IGR), all genuine base failures.
+
+### Training (`train_prajna2b.py`)
+Three safe stages, seeded from `dpo_final.pt` (read-only), outputs `sft_v2_*`/`dpo_v2_*`
+(never overwrites production). Uses `state_v2.json`.
+- **A. SFT** on `(prompt, correct)` — 2000 steps
+- **B. DPO** `(chosen=correct, rejected=base_wrong)` — 500 steps
+- **C. Contrastive** `(prompt, base_wrong, correct)` — reflection learns right vs wrong — 200 steps
+- `Student.forward_dpo` / `forward_contrastive` added for the DPO/contrastive losses.
+
+### Evaluation (`eval_prajna2b.py`)
+- **Primary metric: error-correction rate** — on held-out prompts where BASE is wrong,
+  what % does CRN get right? (This is the whole point of the ReflectiveLoop.)
+- **Reflection ablation** — disable `reflection_gate` → error-correction should drop.
+- In-distribution ppl + OOD bpb (compare to dpo_final baseline: OOD was ~3× worse).
+
+### Status (Jul 17)
+- ✅ Architecture change done + verified (imports, reflection_gate saved in ckpt).
+- ✅ Dataset generated (360 pairs).
+- ✅ Training + eval scripts written (syntax-validated).
+- ⏸️ **Training NOT yet run to completion.** Pilot plan: 500 SFT + 200 DPO (~4–6h CPU).
+- ⚠️ **Hardware constraint:** training is **CPU-only** (MPS broken for wrapper). On this
+  Mac Mini M4 the 10GB base is memory-mapped from the external KIOXIA disk (system disk
+  too full for it), making each gen ~10s (4× slower than internal SSD). A full 2700-step
+  run is ~16–20h. `run_ext.sh` wrapper sets `HF_HOME`/`TMPDIR` to the external disk to
+  avoid filling the system disk (which caused a crash when other tasks ran).
+
+### How to run (when ready)
+```bash
+# Pilot (external disk so system disk doesn't fill):
+SFT_V2_STEPS=500 DPO_V2_STEPS=200 CON_V2_STEPS=0 CRN_DEVICE=cpu \
+  ./prajna-phase2/src/run_ext.sh prajna-phase2/src/train_prajna2b.py
+# Eval:
+CKPT=./prajna/checkpoints/dpo_v2_final.pt \
+  ./prajna-phase2/src/run_ext.sh prajna-phase2/src/eval_prajna2b.py
+```
 
 ---
 
@@ -683,8 +756,24 @@ Prajna/
         ├── train_gcp.py             — GCP T4 training script
         ├── gcp_setup.sh             — GCP instance setup
         ├── GCP_TRAINING.md          — GCP training guide
-        ├── sanity_train.py          — Training script (needs GPU)
-        └── integration_prototype.py — Architecture inspection script
+        ├── sanity_train.py           — Training script (needs GPU)
+        ├── integration_prototype.py — Architecture inspection script
+        ├── gen_error_correction.py  — Build base-mistake DPO pairs (Phase 1)
+        ├── train_prajna2b.py        — Phase 1: SFT→DPO→contrastive on errors
+        ├── eval_prajna2b.py         — Phase 1: error-correction rate + ablation
+        ├── run_ext.sh               — Launch wrapper (HF_HOME/TMPDIR → external disk)
+        ├── analyze_crn.py           — Per-injection ablation + crn_mix inspection
+        ├── analyze_stage3.py        — Car-wash original vs reworded (false-positive proof)
+        ├── bench_standard.py        — MMLU/BoolQ/HellaSwag/car-wash vs base
+        ├── eval_csn.py              — IGR/car-wash eval (heuristic, not reasoning)
+        └── train_csn.py             — SFT→DPO re-run (enriched corpus, superseded by v2)
+```
+
+**Data / checkpoints (gitignored):**
+```
+prajna/data/error_correction_pairs.json — 360 base-mistake pairs (Phase 1)
+prajna/checkpoints/dpo_v2_final.pt      — Phase 1 output (when trained)
+prajna/checkpoints/state_v2.json        — Phase 1 resume state
 ```
 
 ### External Resources
@@ -710,4 +799,4 @@ To pick up this project:
 
 ---
 
-*This document is updated at the end of each phase. Current: Phase 2, M4 validation complete.*
+*This document is updated at the end of each phase. Current: Prajna-2B Phase 1 — ReflectiveLoop wired in, dataset + training/eval scripts ready, training pending.*

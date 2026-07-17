@@ -189,7 +189,7 @@ class SkillComposer(nn.Module):
 
 
 # ============ Student Model ============
-CRN_PREFIXES = ('crn_mix', 'resonance.', 'skills.', 'reflection.', 'mem.')
+CRN_PREFIXES = ('crn_mix', 'resonance.', 'skills.', 'reflection.', 'reflection_gate', 'mem.')
 
 def get_crn_state_dict(model):
     return {k: v.cpu() for k, v in model.state_dict().items()
@@ -222,6 +222,10 @@ class PrajnaStudentMultiLayer(nn.Module):
         self.inject_indices = list(range(inject_every - 1, self.num_layers, inject_every))
         self.num_injections = len(self.inject_indices)
         self.crn_mix = nn.Parameter(torch.full((self.num_injections,), crn_mix_init))
+        # Separate gate for the ReflectiveLoop (self-correction pillar).
+        # Higher init (0.15) than crn_mix so reflection is encouraged to learn
+        # instead of collapsing to zero like before.
+        self.reflection_gate = nn.Parameter(torch.full((self.num_injections,), 0.15))
 
         crn_dev = device
         self.mem = EpisodicMemory(self.d_model, mem_size=mem_size, mem_dim=mem_dim, device=crn_dev)
@@ -256,8 +260,14 @@ class PrajnaStudentMultiLayer(nn.Module):
             h = collected[idx].detach().to(torch.float32)
             r = self.resonance(h)
             s = self.skills(h)
+            # ReflectiveLoop returns (h + correction, correction_id) only when
+            # return_correction_id=True; otherwise just the corrected state.
+            ref_out = self.reflection(h, return_correction_id=True)
+            ref_corrected = ref_out[0] if isinstance(ref_out, tuple) else ref_out
+            ref_correction = ref_corrected - h
             mix = torch.sigmoid(self.crn_mix[idx])
-            correction = mix * (r + s)
+            ref_mix = torch.sigmoid(self.reflection_gate[idx])
+            correction = mix * (r + s) + ref_mix * ref_correction
             if training:
                 corrections = corrections + correction
             else:
@@ -284,6 +294,7 @@ class PrajnaStudentMultiLayer(nn.Module):
         params = (self.mem.get_parameters() + list(self.reflection.parameters()) +
                   list(self.skills.parameters()) + list(self.resonance.parameters()))
         params.append(self.crn_mix)
+        params.append(self.reflection_gate)
         return params
 
     def save_memory(self, p): self.mem.save(p)
