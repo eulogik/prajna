@@ -1,0 +1,362 @@
+[
+ {
+  "id": "G.001",
+  "prompt": "What is the chemical symbol for gold?",
+  "answer": "Au",
+  "domain": "facts"
+ },
+ {
+  "id": "G.002",
+  "prompt": "Which planet is known as the Red Planet?",
+  "answer": "Mars",
+  "domain": "facts"
+ },
+ {
+  "id": "G.003",
+  "prompt": "How many planets are in the Solar System?",
+  "answer": "8",
+  "domain": "facts"
+ },
+ {
+  "id": "G.004",
+  "prompt": "The room feels stuffy and warm.",
+  "answer": "open a window",
+  "domain": "igr"
+ },
+ {
+  "id": "G.005",
+  "prompt": "What is 30 times 82?",
+  "answer": "2460",
+  "domain": "math"
+ },
+ {
+  "id": "G.006",
+  "prompt": "The potted plants are wilting and drooping.",
+  "answer": "water them",
+  "domain": "igr"
+ },
+ {
+  "id": "G.007",
+  "prompt": "My phone screen is impossible to read outside.",
+  "answer": "increase brightness",
+  "domain": "igr"
+ },
+ {
+  "id": "G.008",
+  "prompt": "I cannot fall asleep at night.",
+  "answer": "reduce screen time",
+  "domain": "igr"
+ },
+ {
+  "id": "G.009",
+  "prompt": "What is the largest ocean on Earth?",
+  "answer": "Pacific",
+  "domain": "facts"
+ },
+ {
+  "id": "G.010",
+  "prompt": "My hands are full of groceries.",
+  "answer": "use a bag",
+  "domain": "igr"
+ },
+ {
+  "id": "G.011",
+  "prompt": "What is 629 minus 37?",
+  "answer": "592",
+  "domain": "math"
+ },
+ {
+  "id": "G.012",
+  "prompt": "What is 5 to the power of 3?",
+  "answer": "125",
+  "domain": "math"
+ },
+ {
+  "id": "G.013",
+  "prompt": "I am always arriving late to work.",
+  "answer": "leave earlier",
+  "domain": "igr"
+ },
+ {
+  "id": "G.014",
+  "prompt": "What gas do plants absorb for photosynthesis?",
+  "answer": "carbon dioxide",
+  "domain": "facts"
+ },
+ {
+  "id": "G.015",
+  "prompt": "What is the capital of Japan?",
+  "answer": "Tokyo",
+  "domain": "facts"
+ },
+ {
+  "id": "G.016",
+  "prompt": "What is 467 modulo 8?",
+  "answer": "3",
+  "domain": "math"
+ },
+ {
+  "id": "G.017",
+  "prompt": "The cake I baked did not rise at all.",
+  "answer": "add baking powder",
+  "domain": "igr"
+ },
+ {
+  "id": "G.018",
+  "prompt": "How many continents are there?",
+  "answer": "7",
+  "domain": "facts"
+ },
+ {
+  "id": "G.019",
+  "prompt": "What is 76 times 75?",
+  "answer": "5700",
+  "domain": "math"
+ },
+ {
+  "id": "G.020",
+  "prompt": "The bread I toasted is cold already.",
+  "answer": "reheat it",
+  "domain": "igr"
+ },
+ {
+  "id": "G.021",
+  "prompt": "What is 72 times 93?",
+  "answer": "6696",
+  "domain": "math"
+ },
+ {
+  "id": "G.022",
+  "prompt": "Who wrote Romeo and Juliet?",
+  "answer": "William Shakespeare",
+  "domain": "facts"
+ },
+ {
+  "id": "G.023",
+  "prompt": "What is 2 to the power of 10?",
+  "answer": "1024",
+  "domain": "facts"
+ },
+ {
+  "id": "G.024",
+  "prompt": "What is 110 modulo 12?",
+  "answer": "2",
+  "domain": "math"
+ },
+ {
+  "id": "G.025",
+  "prompt": "What is the capital of France?",
+  "answer": "Paris",
+  "domain": "facts"
+ },
+ {
+  "id": "G.026",
+  "prompt": "In what year did World War II end?",
+  "answer": "1945",
+  "domain": "facts"
+ },
+ {
+  "id": "G.027",
+  "prompt": "The soup I made is far too salty.",
+  "answer": "add water",
+  "domain": "igr"
+ },
+ {
+  "id": "G.028",
+  "prompt": "What is 148 divided by 2?",
+  "answer": "74",
+  "domain": "math"
+ },
+ {
+  "id": "G.029",
+  "prompt": "My phone says it has no storage left.",
+  "answer": "delete files",
+  "domain": "igr"
+ },
+ {
+  "id": "G.030",
+  "prompt": "This coffee tastes too bitter for me.",
+  "answer": "add milk",
+  "domain": "igr"
+ },
+ {
+  "id": "G.031",
+  "prompt": "What is 2 to the power of 2?",
+  "answer": "4",
+  "domain": "math"
+ },
+ {
+  "id": "G.032",
+  "prompt": "What is 79 modulo 19?",
+  "answer": "3",
+  "domain": "math"
+ },
+ {
+  "id": "G.033",
+  "prompt": "What is 138 plus 188?",
+  "answer": "326",
+  "domain": "math"
+ },
+ {
+  "id": "G.034",
+  "prompt": "What is 354 minus 102?",
+  "answer": "252",
+  "domain": "math"
+ },
+ {
+  "id": "G.035",
+  "prompt": "What is 349 modulo 15?",
+  "answer": "4",
+  "domain": "math"
+ },
+ {
+  "id": "G.036",
+  "prompt": "I keep forgetting all my passwords.",
+  "answer": "use a password manager",
+  "domain": "igr"
+ },
+ {
+  "id": "G.037",
+  "prompt": "What is the approximate speed of light in vacuum, in km/s?",
+  "answer": "300000",
+  "domain": "facts"
+ },
+ {
+  "id": "G.038",
+  "prompt": "What is 98 modulo 14?",
+  "answer": "0",
+  "domain": "math"
+ },
+ {
+  "id": "G.039",
+  "prompt": "What is the chemical formula for water?",
+  "answer": "H2O",
+  "domain": "facts"
+ },
+ {
+  "id": "G.040",
+  "prompt": "What is 80 divided by 8?",
+  "answer": "10",
+  "domain": "math"
+ },
+ {
+  "id": "G.041",
+  "prompt": "What is 11 to the power of 2?",
+  "answer": "121",
+  "domain": "math"
+ },
+ {
+  "id": "G.042",
+  "prompt": "What is 74 times 9?",
+  "answer": "666",
+  "domain": "math"
+ },
+ {
+  "id": "G.043",
+  "prompt": "This instruction letter is confusing and unclear.",
+  "answer": "rewrite it",
+  "domain": "igr"
+ },
+ {
+  "id": "G.044",
+  "prompt": "What is 192 plus 664?",
+  "answer": "856",
+  "domain": "math"
+ },
+ {
+  "id": "G.045",
+  "prompt": "The kettle is whistling and the water is boiling.",
+  "answer": "turn off the heat",
+  "domain": "igr"
+ },
+ {
+  "id": "G.046",
+  "prompt": "What is the most abundant gas in Earth's atmosphere?",
+  "answer": "nitrogen",
+  "domain": "facts"
+ },
+ {
+  "id": "G.047",
+  "prompt": "My phone keeps dying before noon.",
+  "answer": "use a power bank",
+  "domain": "igr"
+ },
+ {
+  "id": "G.048",
+  "prompt": "What is the square root of 144?",
+  "answer": "12",
+  "domain": "facts"
+ },
+ {
+  "id": "G.049",
+  "prompt": "My laptop has become very slow lately.",
+  "answer": "close background apps",
+  "domain": "igr"
+ },
+ {
+  "id": "G.050",
+  "prompt": "What is 30 times 7?",
+  "answer": "210",
+  "domain": "math"
+ },
+ {
+  "id": "G.051",
+  "prompt": "What is 489 modulo 7?",
+  "answer": "6",
+  "domain": "math"
+ },
+ {
+  "id": "G.052",
+  "prompt": "What force pulls objects toward Earth?",
+  "answer": "gravity",
+  "domain": "facts"
+ },
+ {
+  "id": "G.053",
+  "prompt": "What is the hardest known natural material?",
+  "answer": "diamond",
+  "domain": "facts"
+ },
+ {
+  "id": "G.054",
+  "prompt": "I stepped in something wet on the kitchen floor.",
+  "answer": "wipe it up",
+  "domain": "igr"
+ },
+ {
+  "id": "G.055",
+  "prompt": "Who was the first person to walk on the Moon?",
+  "answer": "Neil Armstrong",
+  "domain": "facts"
+ },
+ {
+  "id": "G.056",
+  "prompt": "Our meeting is running long and people are tired.",
+  "answer": "end the meeting",
+  "domain": "igr"
+ },
+ {
+  "id": "G.057",
+  "prompt": "I am spending more than I earn each month.",
+  "answer": "cut spending",
+  "domain": "igr"
+ },
+ {
+  "id": "G.058",
+  "prompt": "How many sides does a hexagon have?",
+  "answer": "6",
+  "domain": "facts"
+ },
+ {
+  "id": "G.059",
+  "prompt": "Every photo I take comes out blurry.",
+  "answer": "steady the camera",
+  "domain": "igr"
+ },
+ {
+  "id": "G.060",
+  "prompt": "What is the boiling point of water at sea level, in Celsius?",
+  "answer": "100",
+  "domain": "facts"
+ }
+]
