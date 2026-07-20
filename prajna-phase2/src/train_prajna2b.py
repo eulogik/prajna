@@ -35,10 +35,12 @@ DPO_LR = 5e-6
 CON_LR = 5e-6
 DPO_BETA = 0.1
 CON_MARGIN = 0.2
+# BATCH=1: verified to work (the collate yields a valid (1, ML) 2D batch). Raise
+# for more throughput on a bigger GPU.
 BATCH = 1
-GRAD_ACCUM = 8
+GRAD_ACCUM = int(os.environ.get('GRAD_ACCUM', '8'))
 MAX_GRAD_NORM = 1.0
-SAVE_EVERY = 50
+SAVE_EVERY = int(os.environ.get('SAVE_EVERY', '50'))
 LOG_EVERY = 10
 MAX_LENGTH = int(os.environ.get('CRN_MAXLEN', '96'))
 DEVICE = os.environ.get('CRN_DEVICE', 'cpu')
@@ -60,6 +62,12 @@ def find_latest(prefix):
         try: return int(f.split(f'/{prefix}_')[-1].split('.pt')[0])
         except: return -1
     return sorted(fs, key=step_of)[-1]
+
+def recent_avg(losses, n=None):
+    n = n or LOG_EVERY
+    if not losses:
+        return 0.0
+    return sum(losses[-n:]) / len(losses[-n:])
 
 class Student(PrajnaStudentMultiLayer):
     def forward_dpo(self, chosen_ids, rejected_ids):
@@ -142,11 +150,28 @@ print("NOTE: ReflectiveLoop is now wired into _apply_crn with reflection_gate (i
 # =================== Build model ===================
 student = Student(device='cpu', inject_every=INJECT_EVERY, max_length=MAX_LENGTH, crn_mix_init=CRN_MIX_INIT)
 student = student.to(DEVICE)
-ckpt = torch.load(SEED_CKPT, map_location=DEVICE, weights_only=False)
+
+def resolve_resume():
+    """Pick the most advanced checkpoint so a restart continues from REAL weights.
+
+    Always seeding from SEED_CKPT (dpo_final.pt) would discard any partial
+    SFT/DPO/CON progress saved before a crash. Prefer the latest real ckpt."""
+    for fn in ('dpo_v2_final.pt', 'sft_v2_final.pt'):
+        p = f'{CKPT_DIR}/{fn}'
+        if os.path.exists(p):
+            return p, fn
+    for prefix in ('sft_v2', 'dpo_v2', 'con_v2'):
+        p = find_latest(prefix)
+        if p:
+            return p, os.path.basename(p)
+    return SEED_CKPT, os.path.basename(SEED_CKPT)
+
+RESUME_CKPT, RESUME_LABEL = resolve_resume()
+ckpt = torch.load(RESUME_CKPT, map_location=DEVICE, weights_only=False)
 student.load_state_dict(ckpt['crn'], strict=False)
 if 'memory_file' in ckpt and os.path.exists(ckpt['memory_file']):
     student.load_memory(ckpt['memory_file'])
-print(f"Seeded from {SEED_CKPT} (step {ckpt.get('step')})")
+print(f"Resumed from {RESUME_CKPT} (label={RESUME_LABEL}, step {ckpt.get('step')})")
 
 # =================== STAGE A: SFT on corrections ===================
 if not state.get('sft_complete', False):
@@ -183,14 +208,14 @@ if not state.get('sft_complete', False):
                     print(f"  SFT {step}/{SFT_STEPS} loss={avg:.4f} ref_gate={torch.sigmoid(student.reflection_gate).mean().item():.3f}")
                     sys.stdout.flush()
                 if step % SAVE_EVERY == 0:
-                    torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': avg,
+                    torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': recent_avg(losses),
                                 'reflection_gate': student.reflection_gate.detach().cpu()},
                                f'{CKPT_DIR}/sft_v2_{step}.pt')
             except Exception as e:
                 print(f"  [SFT err] {e}"); traceback.print_exc(); step += 1
     state['sft_complete'] = True
     save_state(state)
-    torch.save({'crn': get_crn_state_dict(student), 'step': SFT_STEPS, 'loss': avg,
+    torch.save({'crn': get_crn_state_dict(student), 'step': SFT_STEPS, 'loss': recent_avg(losses),
                 'reflection_gate': student.reflection_gate.detach().cpu()},
                f'{CKPT_DIR}/sft_v2_final.pt')
     print("STAGE A done -> sft_v2_final.pt")
@@ -226,14 +251,14 @@ if not state.get('dpo_complete', False):
                     print(f"  DPO {step}/{DPO_STEPS} loss={avg:.4f} C={out['chosen_reward']:.2f} R={out['rejected_reward']:.2f} ref_gate={torch.sigmoid(student.reflection_gate).mean().item():.3f}")
                     sys.stdout.flush()
                 if step % SAVE_EVERY == 0:
-                    torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': avg,
+                    torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': recent_avg(losses),
                                 'reflection_gate': student.reflection_gate.detach().cpu()},
                                f'{CKPT_DIR}/dpo_v2_{step}.pt')
             except Exception as e:
                 print(f"  [DPO err] {e}"); step += 1
     state['dpo_complete'] = True
     save_state(state)
-    torch.save({'crn': get_crn_state_dict(student), 'step': DPO_STEPS, 'loss': avg,
+    torch.save({'crn': get_crn_state_dict(student), 'step': DPO_STEPS, 'loss': recent_avg(losses),
                 'reflection_gate': student.reflection_gate.detach().cpu()},
                f'{CKPT_DIR}/dpo_v2_final.pt')
     print("STAGE B done -> dpo_v2_final.pt")
@@ -269,6 +294,10 @@ if not state.get('con_complete', False):
                     avg = sum(losses[-LOG_EVERY:]) / LOG_EVERY
                     print(f"  CON {step}/{CON_STEPS} loss={avg:.4f} ref_gate={torch.sigmoid(student.reflection_gate).mean().item():.3f}")
                     sys.stdout.flush()
+                if step % SAVE_EVERY == 0:
+                    torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': recent_avg(losses),
+                                'reflection_gate': student.reflection_gate.detach().cpu()},
+                               f'{CKPT_DIR}/con_v2_{step}.pt')
             except Exception as e:
                 print(f"  [CON err] {e}"); step += 1
     state['con_complete'] = True
