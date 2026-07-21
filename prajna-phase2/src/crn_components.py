@@ -49,26 +49,24 @@ class ResonanceAttention(nn.Module):
         return self.out_proj(out.reshape(B, T, D))
 
 
-class EpisodicMemory:
+class EpisodicMemory(nn.Module):
     def __init__(self, d_model, mem_size=256, mem_dim=64, device='cpu'):
+        super().__init__()
         self.mem_size = mem_size
         self.mem_dim = mem_dim
         self.d_model = d_model
-        self.device = device
-        self.memory = torch.zeros(mem_size, mem_dim, device=device)
-        self.temporal_positions = torch.zeros(mem_size, device=device)
+        self.register_buffer('memory', torch.zeros(mem_size, mem_dim))
+        self.register_buffer('temporal_positions', torch.zeros(mem_size))
         self.write_ptr = 0
         self.step_count = 0
-        self.compress = nn.Linear(d_model, mem_dim).to(device)
-        self.decompress = nn.Linear(mem_dim, d_model).to(device)
-        self.read_gate = nn.Linear(d_model, mem_dim).to(device)
-        self.write_gate = nn.Linear(d_model, 1).to(device)
-        self.relevance_gate = nn.Linear(d_model + mem_dim, 1).to(device)
+        self.compress = nn.Linear(d_model, mem_dim)
+        self.decompress = nn.Linear(mem_dim, d_model)
+        self.read_gate = nn.Linear(d_model, mem_dim)
+        self.write_gate = nn.Linear(d_model, 1)
+        self.relevance_gate = nn.Linear(d_model + mem_dim, 1)
 
     def get_parameters(self):
-        return (list(self.compress.parameters()) + list(self.decompress.parameters()) +
-                list(self.read_gate.parameters()) + list(self.write_gate.parameters()) +
-                list(self.relevance_gate.parameters()))
+        return list(self.parameters())
 
     def read(self, query, top_k=8):
         if query.dim() == 1: query = query.unsqueeze(0)
@@ -113,8 +111,8 @@ class EpisodicMemory:
 
     def load(self, path):
         with open(path) as f: state = json.load(f)
-        self.memory = torch.tensor(state['memory'], dtype=torch.float32, device=self.device)
-        self.temporal_positions = torch.tensor(state['temporal_positions'], dtype=torch.float32, device=self.device)
+        self.memory.data = torch.tensor(state['memory'], dtype=torch.float32, device=self.memory.device)
+        self.temporal_positions.data = torch.tensor(state['temporal_positions'], dtype=torch.float32, device=self.temporal_positions.device)
         self.write_ptr = state['write_ptr']
         self.step_count = state['step_count']
 
