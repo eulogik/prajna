@@ -132,22 +132,34 @@ class ReflectiveLoop(nn.Module):
 
     def forward(self, hidden_state, return_correction_id=False):
         pooled = hidden_state.mean(dim=1) if hidden_state.dim() == 3 else hidden_state
+        B = hidden_state.shape[0]
         scores = self.critic(pooled)
-        no_correction_score = scores[:, -1]
-        correction_scores = scores[:, :-1]
-        best_score, best_idx = correction_scores.max(dim=-1)
-        apply_correction = best_score > (no_correction_score + 0.2)
-        corrected_state = hidden_state.clone()
-        correction_id = -1
-        if apply_correction.any():
-            for b in range(hidden_state.shape[0]):
-                if apply_correction[b]:
-                    correction = self.correction_directions[best_idx[b]]
-                    confidence = torch.sigmoid(best_score[b] - self.thresholds[best_idx[b]])
-                    scale = torch.abs(self.confidence_scale)
-                    corrected_state[b] = hidden_state[b] + scale * confidence * correction
-                    correction_id = best_idx[b].item()
-        return (corrected_state, correction_id) if return_correction_id else corrected_state
+        corr_scores = scores[:, :-1]
+        no_corr_score = scores[:, -1:]
+
+        if self.training:
+            weights = F.softmax(corr_scores, dim=-1)
+            advantage = corr_scores.max(dim=-1, keepdim=True)[0] - no_corr_score
+            gate = torch.sigmoid(advantage)
+            correction_dir = weights @ self.correction_directions
+            confidence = torch.sigmoid(corr_scores - self.thresholds.unsqueeze(0))
+            avg_confidence = (weights * confidence).sum(dim=-1, keepdim=True)
+            scale = torch.abs(self.confidence_scale)
+            correction = gate * avg_confidence * scale * correction_dir
+            corrected_state = hidden_state + correction.unsqueeze(1)
+            _, best_idx = corr_scores.max(dim=-1)
+        else:
+            best_score, best_idx = corr_scores.max(dim=-1)
+            apply_correction = best_score > (no_corr_score.squeeze(-1) + 0.2)
+            corrected_state = hidden_state.clone()
+            if apply_correction.any():
+                for b in range(B):
+                    if apply_correction[b]:
+                        correction = self.correction_directions[best_idx[b]]
+                        confidence = torch.sigmoid(best_score[b] - self.thresholds[best_idx[b]])
+                        scale = torch.abs(self.confidence_scale)
+                        corrected_state[b] = hidden_state[b] + scale * confidence * correction
+        return (corrected_state, best_idx if return_correction_id else corrected_state)
 
 
 class SkillComposer(nn.Module):
