@@ -101,7 +101,8 @@ def gen_math(n):
         else:
             a, b = random.randint(1, 100), random.randint(1, 100)
         ans = MATH_OPS[op](a, b)
-        tmpl = random.choice(TEMPLATES["math"])
+        op_to_tmpl = {"+": 0, "-": 1, "*": 2, "/": 3, "%": 4, "^": 5}
+        tmpl = TEMPLATES["math"][op_to_tmpl[op]]
         q = tmpl[0].format(a=a, b=b)
         ans_str = tmpl[1].format(ans=ans)
         pairs.append({"domain": "math", "prompt": q, "chosen": ans_str, "rejected": make_wrong_math(ans_str, op)})
@@ -114,8 +115,8 @@ def gen_facts(n):
         tmpl = random.choice(TEMPLATES["facts"][ftype])
         q = tmpl[0].format(**fact)
         ans = tmpl[1].format(**fact)
-        same = [f for t, f in FACTS if t == ftype]
-        wrong_fact = random.choice(same)
+        same = [f for t, f in FACTS if t == ftype and f != fact]
+        wrong_fact = random.choice(same) if same else random.choice([f for t, f in FACTS if t != ftype])
         wrong_val = list(wrong_fact.values())[1]
         pairs.append({"domain": "facts", "prompt": q, "chosen": ans, "rejected": wrong_val})
     return pairs
