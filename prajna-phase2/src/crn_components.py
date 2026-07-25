@@ -126,9 +126,9 @@ class ReflectiveLoop(nn.Module):
             nn.Linear(d_model, d_model // 4), nn.GELU(),
             nn.Linear(d_model // 4, num_corrections + 1)
         )
-        self.correction_directions = nn.Parameter(torch.randn(num_corrections, d_model) * 0.01)
+        self.correction_directions = nn.Parameter(torch.randn(num_corrections, d_model) * 0.1)
         self.thresholds = nn.Parameter(torch.ones(num_corrections) * 0.5)
-        self.confidence_scale = nn.Parameter(torch.tensor(0.1))
+        self.confidence_scale = nn.Parameter(torch.tensor(0.5))
 
     def forward(self, hidden_state, return_correction_id=False):
         pooled = hidden_state.mean(dim=1) if hidden_state.dim() == 3 else hidden_state
@@ -233,9 +233,7 @@ class PrajnaStudentMultiLayer(nn.Module):
         self.num_injections = len(self.inject_indices)
         self.crn_mix = nn.Parameter(torch.full((self.num_injections,), crn_mix_init))
         # Separate gate for the ReflectiveLoop (self-correction pillar).
-        # Higher init (0.15) than crn_mix so reflection is encouraged to learn
-        # instead of collapsing to zero like before.
-        self.reflection_gate = nn.Parameter(torch.full((self.num_injections,), 0.15))
+        self.reflection_gate = nn.Parameter(torch.full((self.num_injections,), 0.5))
 
         crn_dev = device
         self.mem = EpisodicMemory(self.d_model, mem_size=mem_size, mem_dim=mem_dim, device=crn_dev)
