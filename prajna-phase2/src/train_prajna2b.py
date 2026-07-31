@@ -44,8 +44,8 @@ SAVE_EVERY = int(os.environ.get('SAVE_EVERY', '50'))
 LOG_EVERY = 10
 MAX_LENGTH = int(os.environ.get('CRN_MAXLEN', '96'))
 DEVICE = os.environ.get('CRN_DEVICE', 'cpu')
-INJECT_EVERY = 8
-CRN_MIX_INIT = 0.05
+INJECT_EVERY = 4
+CRN_MIX_INIT = 2.0
 
 def load_state():
     if os.path.exists(STATE_FILE):
@@ -121,7 +121,7 @@ class ECSFTDataset(Dataset):
     def __len__(self): return len(self.p)
     def __getitem__(self, i):
         s = self.p[i]
-        text = f"{s['prompt']}\n\n{s['chosen']}{self.tok.eos_token}"
+        text = f"{s['prompt']}: {s['chosen']}{self.tok.eos_token}"
         enc = self.tok(text, truncation=True, max_length=self.ml, padding='max_length', return_tensors='pt')
         ids = enc['input_ids'].squeeze()
         labels = ids.clone()
@@ -145,7 +145,7 @@ class ECContrastiveDataset(Dataset):
 state = load_state()
 print(f"Device={DEVICE} MAX_LENGTH={MAX_LENGTH} SFT={SFT_STEPS} DPO={DPO_STEPS} CON={CON_STEPS}")
 print(f"State: {state}")
-print("NOTE: ReflectiveLoop is now wired into _apply_crn with reflection_gate (init 0.15).")
+print("NOTE: inject_every=4, crn_mix_init=2.0, SFT format=': ', eos_weight=5.0")
 
 # =================== Build model ===================
 student = Student(device='cpu', inject_every=INJECT_EVERY, max_length=MAX_LENGTH, crn_mix_init=CRN_MIX_INIT)
@@ -168,7 +168,13 @@ def resolve_resume():
 
 RESUME_CKPT, RESUME_LABEL = resolve_resume()
 ckpt = torch.load(RESUME_CKPT, map_location=DEVICE, weights_only=False)
-student.load_state_dict(ckpt['crn'], strict=False)
+# Handle architecture changes (e.g. inject_every, crn_mix_init) that change param sizes
+crn_state = ckpt['crn']
+for key in ['crn_mix', 'reflection_gate']:
+    if key in crn_state and crn_state[key].shape != getattr(student, key).shape:
+        print(f"  Re-initializing {key}: ckpt={crn_state[key].shape} vs model={getattr(student, key).shape}")
+        del crn_state[key]
+student.load_state_dict(crn_state, strict=False)
 if 'memory_file' in ckpt and os.path.exists(ckpt['memory_file']):
     student.load_memory(ckpt['memory_file'])
 print(f"Resumed from {RESUME_CKPT} (label={RESUME_LABEL}, step {ckpt.get('step')})")
@@ -191,7 +197,7 @@ if not state.get('sft_complete', False):
             if step >= SFT_STEPS: break
             try:
                 ids = batch['input_ids'].to(DEVICE); labels = batch['labels'].to(DEVICE)
-                out = student(ids, labels)
+                out = student(ids, labels, eos_weight=5.0)
                 loss = out['loss'] / GRAD_ACCUM
                 if not torch.isfinite(loss):
                     sched.step(); step += 1; continue
@@ -211,6 +217,7 @@ if not state.get('sft_complete', False):
                     torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': recent_avg(losses),
                                 'reflection_gate': student.reflection_gate.detach().cpu()},
                                f'{CKPT_DIR}/sft_v2_{step}.pt')
+                    save_state(state)  # precise resume if training breaks
             except Exception as e:
                 print(f"  [SFT err] {e}"); traceback.print_exc(); step += 1
     state['sft_complete'] = True
@@ -254,6 +261,7 @@ if not state.get('dpo_complete', False):
                     torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': recent_avg(losses),
                                 'reflection_gate': student.reflection_gate.detach().cpu()},
                                f'{CKPT_DIR}/dpo_v2_{step}.pt')
+                    save_state(state)  # precise resume if training breaks
             except Exception as e:
                 print(f"  [DPO err] {e}"); step += 1
     state['dpo_complete'] = True
@@ -298,6 +306,7 @@ if not state.get('con_complete', False):
                     torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': recent_avg(losses),
                                 'reflection_gate': student.reflection_gate.detach().cpu()},
                                f'{CKPT_DIR}/con_v2_{step}.pt')
+                    save_state(state)  # precise resume if training breaks
             except Exception as e:
                 print(f"  [CON err] {e}"); step += 1
     state['con_complete'] = True

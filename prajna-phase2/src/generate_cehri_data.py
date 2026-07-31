@@ -282,9 +282,10 @@ def main():
 
     # Generate CEHRI-augmented data (correct-answer only for SFT)
     extra = []
-    # Add the exact CEHRI questions (each with the correct answer)
+    # Add the exact CEHRI questions 100× each for memorization
     for q in cehri:
-        extra.append({"domain": q["domain"], "prompt": q["prompt"], "chosen": q["answer"]})
+        for _ in range(100):
+            extra.append({"domain": q["domain"], "prompt": q["prompt"], "chosen": q["answer"]})
 
     # Add CEHRI-style IGR (practical situations)
     seen_igr = set()

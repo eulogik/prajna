@@ -207,7 +207,7 @@ def get_crn_state_dict(model):
 
 
 class PrajnaStudentMultiLayer(nn.Module):
-    def __init__(self, device='cpu', inject_every=8, max_length=32, crn_mix_init=0.05,
+    def __init__(self, device='cpu', inject_every=4, max_length=32, crn_mix_init=2.0,
                  num_frequencies=8, top_k=2, num_skills=32, skill_rank=4,
                  num_corrections=8, mem_size=256, mem_dim=64):
         super().__init__()
@@ -287,13 +287,23 @@ class PrajnaStudentMultiLayer(nn.Module):
         logits = self.base_model.lm_head(hidden_corrected.to(torch.float16))
         return logits, final_hidden
 
-    def forward(self, input_ids, labels=None):
+    def forward(self, input_ids, labels=None, eos_weight=1.0):
         outputs = self._collect_hidden(input_ids)
         logits, final_hidden = self._apply_crn(outputs, training=self.training)
         loss = None
         if labels is not None:
-            loss = F.cross_entropy(logits[:, :-1].reshape(-1, self.vocab),
-                                   labels[:, 1:].reshape(-1), ignore_index=-100)
+            per_token_loss = F.cross_entropy(
+                logits[:, :-1].reshape(-1, self.vocab),
+                labels[:, 1:].reshape(-1), ignore_index=-100, reduction='none'
+            )
+            per_token_loss = per_token_loss.reshape(input_ids.shape[0], -1)
+            if eos_weight != 1.0:
+                eos_mask = (labels[:, 1:] == self.tok.eos_token_id).float()
+                weights = 1.0 + (eos_weight - 1.0) * eos_mask
+                effective_weights = weights * (labels[:, 1:] != -100).float()
+                loss = (per_token_loss * effective_weights).sum() / effective_weights.sum()
+            else:
+                loss = per_token_loss.mean()
         if self.training and labels is not None:
             self.mem.write(final_hidden[:, -1, :].mean(dim=0).to(torch.float32), force=False)
         return {'loss': loss, 'logits': logits}
