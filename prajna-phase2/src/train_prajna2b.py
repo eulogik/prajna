@@ -126,6 +126,12 @@ class ECSFTDataset(Dataset):
         ids = enc['input_ids'].squeeze()
         labels = ids.clone()
         labels[enc['attention_mask'].squeeze() == 0] = -100
+        # Mask the prompt prefix (incl. separator): CRN is only trained to
+        # produce the ANSWER. Prompt tokens are easy for the base model, so
+        # including them lets gradients shrink corrections toward zero.
+        pre_ids = self.tok(f"{s['prompt']}: ", truncation=True, max_length=self.ml,
+                           return_tensors='pt')['input_ids'].squeeze()
+        labels[:pre_ids.shape[0]] = -100
         return {'input_ids': ids, 'labels': labels}
 
 class ECContrastiveDataset(Dataset):
@@ -145,11 +151,14 @@ class ECContrastiveDataset(Dataset):
 state = load_state()
 print(f"Device={DEVICE} MAX_LENGTH={MAX_LENGTH} SFT={SFT_STEPS} DPO={DPO_STEPS} CON={CON_STEPS}")
 print(f"State: {state}")
-print("NOTE: inject_every=4, crn_mix_init=2.0, SFT format=': ', eos_weight=5.0")
+print("NOTE: answer-only SFT loss (prompt masked), wd=0, conf_scale=3.0, eos_weight=5.0")
 
 # =================== Build model ===================
 student = Student(device='cpu', inject_every=INJECT_EVERY, max_length=MAX_LENGTH, crn_mix_init=CRN_MIX_INIT)
 student = student.to(DEVICE)
+if DEVICE == 'mps':
+    gc.collect()
+    torch.mps.empty_cache()  # release retained pool blocks (peak load footprint)
 
 def resolve_resume():
     """Pick the most advanced checkpoint so a restart continues from REAL weights.
@@ -185,7 +194,7 @@ if not state.get('sft_complete', False):
     ds = ECSFTDataset(EC_DATA, student.tok, MAX_LENGTH)
     loader = DataLoader(ds, batch_size=BATCH, shuffle=True, num_workers=0)
     params = student.get_params()
-    opt = torch.optim.AdamW(params, lr=SFT_LR, weight_decay=0.01)
+    opt = torch.optim.AdamW(params, lr=SFT_LR, weight_decay=0.0)  # decay crushed correction_directions 10x
     remaining = max(SFT_STEPS - state.get('sft_step', 0), 1)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=remaining, eta_min=SFT_LR*0.1)
     for _ in range(state.get('sft_step', 0)): sched.step()
@@ -208,7 +217,9 @@ if not state.get('sft_complete', False):
                     opt.zero_grad(); sched.step()
                 losses.append(loss.item() * GRAD_ACCUM); step += 1
                 state['sft_step'] = step
-                if step % 20 == 0: gc.collect()
+                if step % 20 == 0:
+                    gc.collect()
+                    if DEVICE == 'mps': torch.mps.empty_cache()  # cap allocator pool growth
                 if step % LOG_EVERY == 0:
                     avg = sum(losses[-LOG_EVERY:]) / LOG_EVERY
                     print(f"  SFT {step}/{SFT_STEPS} loss={avg:.4f} ref_gate={torch.sigmoid(student.reflection_gate).mean().item():.3f}")

@@ -126,9 +126,9 @@ class ReflectiveLoop(nn.Module):
             nn.Linear(d_model, d_model // 4), nn.GELU(),
             nn.Linear(d_model // 4, num_corrections + 1)
         )
-        self.correction_directions = nn.Parameter(torch.randn(num_corrections, d_model) * 0.1)
+        self.correction_directions = nn.Parameter(torch.randn(num_corrections, d_model) * 0.5)
         self.thresholds = nn.Parameter(torch.ones(num_corrections) * 0.5)
-        self.confidence_scale = nn.Parameter(torch.tensor(0.5))
+        self.confidence_scale = nn.Parameter(torch.tensor(3.0))
 
     def forward(self, hidden_state, return_correction_id=False):
         pooled = hidden_state.mean(dim=1) if hidden_state.dim() == 3 else hidden_state
@@ -149,16 +149,19 @@ class ReflectiveLoop(nn.Module):
             corrected_state = hidden_state + correction.unsqueeze(1)
             _, best_idx = corr_scores.max(dim=-1)
         else:
-            best_score, best_idx = corr_scores.max(dim=-1)
-            apply_correction = best_score > (no_corr_score.squeeze(-1) + 0.2)
-            corrected_state = hidden_state.clone()
-            if apply_correction.any():
-                for b in range(B):
-                    if apply_correction[b]:
-                        correction = self.correction_directions[best_idx[b]]
-                        confidence = torch.sigmoid(best_score[b] - self.thresholds[best_idx[b]])
-                        scale = torch.abs(self.confidence_scale)
-                        corrected_state[b] = hidden_state[b] + scale * confidence * correction
+            # Eval must use the SAME soft gate as training: the hard threshold
+            # (best > no_corr + 0.2) is almost never true after training, so it
+            # silently disables the reflection correction at inference time.
+            weights = F.softmax(corr_scores, dim=-1)
+            advantage = corr_scores.max(dim=-1, keepdim=True)[0] - no_corr_score
+            gate = torch.sigmoid(advantage)
+            correction_dir = weights @ self.correction_directions
+            confidence = torch.sigmoid(corr_scores - self.thresholds.unsqueeze(0))
+            avg_confidence = (weights * confidence).sum(dim=-1, keepdim=True)
+            scale = torch.abs(self.confidence_scale)
+            correction = gate * avg_confidence * scale * correction_dir
+            corrected_state = hidden_state + correction.unsqueeze(1)
+            _, best_idx = corr_scores.max(dim=-1)
         return (corrected_state, best_idx if return_correction_id else corrected_state)
 
 
