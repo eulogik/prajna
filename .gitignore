@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.egg-info/
 .ipynb_checkpoints/
+hf_prajna_v2/
 prajna_checkpoints.zip
 teacher_data.json
 prajna/data/
