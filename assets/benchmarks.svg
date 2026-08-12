@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="430" viewBox="0 0 960 430">
+  <defs><linearGradient id="b1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4f8cff"/><stop offset="1" stop-color="#9a6bff"/></linearGradient></defs>
+  <rect width="960" height="430" rx="18" fill="#ffffff"/>
+  <text x="60" y="48" font-family="system-ui, sans-serif" font-size="26" font-weight="700" fill="#111">Prajna V2 — benchmark snapshot</text>
+  <text x="60" y="76" font-family="system-ui, sans-serif" font-size="14" fill="#555">All numbers measured on-device (Mac Mini M4, MPS). Higher is better. GEN_CLAMP harvests the model's own answer knowledge at decode time.</text>
+  <g font-family="system-ui, sans-serif" font-size="15">
+    <rect x="90" y="120" width="150" height="130" rx="6" fill="url(#b1)"/>
+    <text x="165" y="150" text-anchor="middle" font-size="13" fill="#fff">CEHRI exam</text>
+    <text x="165" y="190" text-anchor="middle" font-size="27" font-weight="800" fill="#fff">60/60</text>
+    <text x="165" y="222" text-anchor="middle" font-size="13" fill="#dfe6ff">memory-augmented</text>
+    <rect x="290" y="136" width="150" height="114" rx="6" fill="#7fd4a8"/>
+    <text x="365" y="166" text-anchor="middle" font-size="13" fill="#063" >Reworded exam</text>
+    <text x="365" y="200" text-anchor="middle" font-size="27" font-weight="800" fill="#063">110/120</text>
+    <text x="365" y="228" text-anchor="middle" font-size="13" fill="#063">memory gate · 91.7%</text>
+    <rect x="490" y="205" width="150" height="45" rx="6" fill="#f2b46b"/>
+    <text x="565" y="226" text-anchor="middle" font-size="14" fill="#4a2c00">Reworded gen-gate</text>
+    <text x="565" y="243" text-anchor="middle" font-size="14" font-weight="700" fill="#4a2c00">41/120 · 34.2%</text>
+    <rect x="690" y="205" width="150" height="45" rx="6" fill="#e2877a"/>
+    <text x="765" y="226" text-anchor="middle" font-size="14" fill="#4a1210">Original gen-gate</text>
+    <text x="765" y="243" text-anchor="middle" font-size="14" font-weight="700" fill="#4a1210">19/60 · 31.7%</text>
+  </g>
+  <text x="60" y="300" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#111">What that means</text>
+  <text x="60" y="326" font-family="system-ui, sans-serif" font-size="13.5" fill="#444">Prajna passes its target exam (CEHRI) with episodic-memory retrieval and answers 92% of unseen-paraphrase variants,</text>
+  <text x="60" y="348" font-family="system-ui, sans-serif" font-size="13.5" fill="#444">using 0.3% trainable parameters (6.7M) on a frozen 2B base — no GPU, no API, trained and evaluated fully on a laptop.</text>
+  <text x="60" y="380" font-family="system-ui, sans-serif" font-size="12.5" fill="#777">Honesty policy: every number above is reproduced by the eval scripts in this repo; see RESULTS.md and the HF model card.</text>
+  <text x="60" y="405" font-family="system-ui, sans-serif" font-size="12.5" fill="#777">Generation without memory does not generalize — measured, documented, and disclosed in the limitations section.</text>
+</svg>

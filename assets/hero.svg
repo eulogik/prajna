@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#1a1f3d"/>
+    </linearGradient>
+    <linearGradient id="acc" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#9a6bff"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="420" rx="18" fill="url(#bg)"/>
+  <text x="480" y="58" text-anchor="middle" font-family="system-ui, sans-serif" font-size="34" font-weight="700" fill="#e8ecff">Prajna V2 — Cognitive Resonance Network</text>
+  <text x="480" y="92" text-anchor="middle" font-family="system-ui, sans-serif" font-size="17" fill="#9aa4d8">6.7M trainable “cortex” · frozen Gemma 4 E2B · trained on a Mac Mini M4 · no API, no GPU</text>
+  <rect x="60" y="130" width="190" height="74" rx="10" fill="#16204a" stroke="#4f8cff" stroke-width="1.5"/>
+  <text x="155" y="162" text-anchor="middle" font-family="system-ui, sans-serif" font-size="15" fill="#e8ecff">Input prompt</text>
+  <text x="155" y="183" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#8fa0d8">“What is the symbol for gold?”</text>
+  <path d="M250 167 H300" stroke="#4f8cff" stroke-width="2.5" marker-end="url(#ar)"/>
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#4f8cff"/></marker></defs>
+  <rect x="310" y="110" width="210" height="114" rx="10" fill="#121a3c" stroke="#9a6bff" stroke-width="1.5"/>
+  <text x="415" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#e8ecff">Gemma 4 E2B (frozen, 2B)</text>
+  <text x="415" y="162" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">hidden states at 8 depths</text>
+  <text x="415" y="184" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">no_grad() — 0 trainable</text>
+  <text x="415" y="206" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">layers 3,7,11,15,19,23,27,31</text>
+  <rect x="580" y="110" width="290" height="114" rx="10" fill="#0e1530" stroke="#4f8cff" stroke-width="1.5"/>
+  <text x="725" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#e8ecff">CRN — 6.7M params (0.3%)</text>
+  <text x="725" y="164" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">ResonanceAttention · SkillComposer</text>
+  <text x="725" y="184" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">ReflectiveLoop · EpisodicMemory</text>
+  <text x="725" y="204" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">sigmoid-gated correction signals</text>
+  <path d="M520 167 H575" stroke="#9a6bff" stroke-width="2.5" marker-end="url(#ar2)"/>
+  <defs><marker id="ar2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#9a6bff"/></marker></defs>
+  <rect x="60" y="290" width="360" height="84" rx="10" fill="#101a3a" stroke="#7fd4a8" stroke-width="1.5"/>
+  <text x="240" y="320" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#e8ecff">Episodic Memory Retrieval</text>
+  <text x="240" y="344" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">17,810 entries · cosine-match ≥ 0.9 · writes every training step</text>
+  <path d="M240 290 V255 H310 V240" stroke="#7fd4a8" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+  <text x="545" y="330" text-anchor="middle" font-family="system-ui, sans-serif" font-size="30" font-weight="800" fill="url(#acc)">CEHRI: 60/60 · 100%</text>
+  <text x="545" y="360" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#8fa0d8">licensing exam · zero cloud · zero API · 2 dB below</text>
+</svg>
