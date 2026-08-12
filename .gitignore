@@ -11,3 +11,8 @@ prajna/data/
 prajna/checkpoints/
 prajna/logs/
 prajna/state.json
+
+.DS_Store
+logs/
+__pycache__/
+*.pyc
