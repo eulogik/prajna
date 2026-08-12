@@ -7,7 +7,7 @@
 > episodic memory and answers **110/120 (91.7%)** of unseen reworded exam variants —
 > while the frozen base alone passes only 7/60 (11.7%).
 
-![Prajna architecture](assets/prajna-hero.png)
+![Prajna architecture](assets/prajna-hero-v2.png)
 
 <p align="center">
   <a href="https://huggingface.co/eulogik/Prajna-V2"><img alt="HuggingFace" src="https://img.shields.io/badge/HuggingFace-eulogik%2FPrajna--V2-FF9D00?style=for-the-badge&logo=huggingface&logoColor=white"></a>
@@ -70,7 +70,7 @@ memory instead of a bigger model?* **Yes — 60/60 on CEHRI, no API calls, no GP
 **Perplexity on its training domain: 106.85 → 6.02 (≈18× lower)** with the same
 frozen backbone — an ablative, in-distribution measurement.
 
-![Benchmark snapshot](assets/prajna-benchmarks.png)
+![Benchmark snapshot](assets/prajna-benchmarks-v2.png)
 
 ---
 
