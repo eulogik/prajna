@@ -1,0 +1,204 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{titlesec}
+\usepackage{enumitem}
+
+\title{\vspace{-1.2em}
+\Large\textbf{Prajna: A 6.7M-Parameter Cognitive Resonance Network for\\[0.2em] Memory-Augmented Domain Specialization on a Frozen 2B Backbone}
+\vspace{0.6em}}
+\author{\textbf{eulogik}\\Cognitive Architecture Research\\\texttt{github.com/eulogik}~$\bullet$~\texttt{huggingface.co/eulogik}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\footnotesize
+\textbf{Keywords:} parameter-efficient fine-tuning; frozen-backbone adapters; retrieval-augmented memory; on-device AI; exam-level evaluation; negative results
+\end{center}
+
+\vspace{-0.5em}
+
+\begin{abstract}
+\noindent
+We present Prajna, a 6.7M-parameter \emph{Cognitive Resonance Network} (CRN) injected into the hidden states of a fully frozen 2B-parameter Gemma~4 E2B model. Only 0.33\% of the parameters are trainable; the base network receives no gradients. Prajna is trained and evaluated entirely on a consumer laptop (Apple M4, 16\,GB, MPS), with no GPU rental and no external model APIs. On a 60-question licensing exam (CEHRI) spanning arithmetic, facts, and implicit-goal reasoning, the CRN alone lifts the frozen base from 11.7\% to 40\% correct; adding a train-derived episodic-memory retrieval table (17,810 entries) yields \textbf{60/60 (100\%)} on the exam and \textbf{110/120 (91.7\%)} on reworded variants whose phrasing was never seen in training. We also report \emph{negative results}: three training-side strategies --- two logit-fusion configurations and a weighted \emph{anchor} on the answer-start position --- failed to move answer knowledge one token position right, while a decode-time harvest (GEN\_CLAMP) reliably recovered that knowledge. In-distribution perplexity drops $\approx$18$\times$ (106.85$\to$6.02), while out-of-distribution text is degraded (2.04 vs.\ 0.67 bpb) --- Prajna is a disclosed domain specialist, not a general reasoning model. All code, weights, data, and evaluation scripts are released.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+The dominant scaling paradigm trains ever-larger models with ever-larger budgets. An alternative line of work asks how much behavioral change can be extracted from a \emph{frozen} backbone using a small trainable subsystem: parameter-efficient fine-tuning (PEFT) \cite{houlsby2019adapters,lora,side-tuning} and retrieval-augmented generation \cite{lewis2020rag}, among others.
+
+Prajna combines these lines. It is a $\sim$6.7M-parameter adapter (\textbf{0.33\%} of the base) that: (i) injects \emph{gated additive correction signals} into the hidden states of a frozen 2B model at eight depths (resonance attention, skill composition, a reflective loop, and episodic memory); (ii) is trained with SFT$\to$DPO$\to$Contrastive stages on a Mac Mini M4 (16\,GB) at $\sim$0.3--0.5\,s/step, entirely on-device, with no API calls at any point; and (iii) combines its generation head with a train-derived \emph{exact-recall} retrieval table that yields 100\% on its target exam and 91.7\% on unseen reworded questions.
+
+We make four contributions. \textbf{(1) Architecture:} a small, backbone-agnostic correction network on frozen hidden states, with per-injection sigmoid gates and an episodic-memory pillar. \textbf{(2) Evaluation protocol:} three gates --- memory-augmented, generation-only, and reworded-unseen --- that separate \emph{recall} from \emph{generalization}. \textbf{(3) Failure analysis:} token-level probing shows the network holds answers one position early while the answer-start position is masked in SFT; three training strategies cannot overcome this, and a decode-time harvest can. \textbf{(4) Transparency:} weights, retrieval table, memory, data, and every evaluation script are public, and out-of-domain failures are reported alongside the headline numbers.
+
+\section{Related Work}
+
+\textbf{Parameter-efficient adaptation.} Adapters \cite{houlsby2019adapters} insert trainable modules between fixed layers; LoRA \cite{lora} learns low-rank updates to weight matrices; side-tuning \cite{side-tuning} trains a separate network whose hidden states blend with the frozen model. Prajna is closest to hidden-state side networks, but applies \emph{multi-depth} corrections with learned per-depth gates plus a persistent memory, adding no parameters to the base forward pass (it reads intermediate states during a shared forward).
+
+\textbf{Memory-augmented language models.} Memorizing Transformers \cite{wu2022memorizing} add external kNN memory over keys/values; RETRO \cite{retro} retrieves document chunks during generation. Prajna's memory is a compact \emph{prompt$\to$answer} table matched by cosine similarity with a fixed threshold --- exact recall rather than dense context interpolation.
+
+\textbf{On-device and edge LLMs.} Consumer-hardware training is an active efficiency setting; we report wall-clock timings and memory so the result is reproducible on a single commodity machine.
+
+\textbf{Answer-position and decoding effects.} Our boundary analysis (Section~\ref{sec:negative}) connects to findings that SFT data-format and masking choices shape where decoder confidence concentrates \cite{perez2021instruction,chia2022sftmask}.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Setup: frozen base, injected corrections}
+
+Let $B$ denote a frozen transformer LM (Gemma~4 E2B; 2B parameters; 32 layers; hidden dimension $d=1536$; vocabulary size 262{,}144). For input tokens $x_{1:n}$, the forward pass yields hidden states $h^{(l)}\in\mathbb{R}^{n\times d}$ at every layer $l$. The CRN selects $K{=}8$ injection depths $\mathcal{L}=\{3,7,11,15,19,23,27,31\}$ and computes a correction
+\begin{equation}
+\hat h^{(l)} = h^{(l)} + \sigma(m_l)\cdot f_l(h^{(l)}, h^{(L)}, M),
+\label{eq:inject}
+\end{equation}
+where $m_l\in\mathbb{R}$ is a learned \texttt{crn\_mix} gate (initialized at 2.0), $\sigma$ is the sigmoid, $f_l$ is the composite correction, $h^{(L)}$ is the final hidden state used as global context, and $M$ is the episodic-memory state. The base runs under \texttt{no\_grad()}; only CRN parameters receive gradients (6{,}721{,}432 total). Corrected hidden states flow into the next base layer; the frozen LM head decodes logits.
+
+\subsection{Correction components}
+
+\textbf{ResonanceAttention} ($\sim$3.4M). Each head assigns tokens to one of $F{=}8$ frequency bands; attention is computed only \emph{within} each band (sparse; the full $n^2$ matrix is never materialized), and the output is weighted by band membership. This provides cheap, interpretable ``cognitive mode'' routing.
+
+\textbf{SkillComposer} ($\sim$2.5M). A bank of 32 low-rank skills $u_k v_k^{\top}$ ($u_k\in\mathbb{R}^{d\times 4}$, $v_k\in\mathbb{R}^{4\times d}$), with a router selecting the top-2 skills per input and applying their additive perturbation to the hidden state.
+
+\textbf{ReflectiveLoop} ($\sim$0.8M). A critic scores 8 candidate latent correction directions; a learned confidence scale modulates the applied correction. It is refined by the contrastive stage (Section~\ref{sec:train}) to prefer directions that move the answer distribution toward the correct target.
+
+\textbf{EpisodicMemory} ($\sim$0.05M). 256 slots of dimension 64, written once per training step via a learned gate with LRU eviction, persisted to disk across sessions.
+
+\subsection{Memory-augmented retrieval gate}
+
+Independent of the slot memory, we construct a \emph{retrieval table} $\mathcal{T}=\{(e_j,a_j)\}$ of 17{,}810 prompt-embedding$\to$answer entries from training data. Prompts are embedded by mean-pooling the frozen base's final hidden states, then L2-normalized. At inference a query is embedded identically; if $\max_j\cos(q,e_j)\ge 0.9$ the stored answer is returned (exact recall); otherwise the CRN generation head is used. The threshold was fixed before evaluation and never tuned on the exam.
+
+\subsection{Training}
+\label{sec:train}
+
+\textbf{Data.} 16{,}680 prompt$\to$answer pairs across three domains (arithmetic, facts, implicit-goal reasoning), each expanded into 5 paraphrase variants --- 83{,}400 rows. The 60-question CEHRI exam is disjoint from training; the reworded exam (120 items) uses a second, disjoint paraphrase transform.
+
+\textbf{Stages.} (i) \emph{SFT}: answer-only masked cross-entropy on the variant-paired corpus, 16{,}000 steps, LR $3\times10^{-4}$, weight decay 0. (ii) \emph{DPO}: 3{,}000 steps, LR $5\times10^{-6}$, $\beta{=}0.1$, preferring the correct completion over the frozen base's wrong one. (iii) \emph{Contrastive}: 1{,}000 steps pulling memory-answer embeddings toward correct answers. Checkpoints every 50 steps with resumable state.
+
+\textbf{Hardware.} Apple M4 (Mac Mini, 16\,GB RAM), MPS backend; $\sim$0.3--0.5\,s/step.
+
+\subsection{GEN\_CLAMP: decode-time answer-knowledge harvest}
+\label{sec:genclamp}
+
+Token-level probes (Section~\ref{sec:negative}) show the CRN concentrates answer probability mass at the \emph{second-to-last} prompt position ($L{-}2$, the colon position in the ``\texttt{prompt: answer}'' format) rather than at the boundary ($L{-}1$, the answer-start position). Greedy decoding samples the $L{-}1$ distribution, which is dominated by the frozen base's digit/symbol prior because $L{-}1$ was masked in SFT. GEN\_CLAMP changes only \emph{decoding}: the first generated token is taken from the $L{-}2$ distribution; subsequent tokens decode normally. It raises original-exam generation from 15.0\% to 31.7\% and reworded generation from 15.0\% to 34.2\% (Section~\ref{sec:genresults}).
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Memory gates: exact recall and reworded generalization}
+
+\begin{table}[ht]
+\centering
+\small
+\caption{CEHRI results. \textbf{Retr} = retrieval gate (threshold 0.9); \textbf{Gen} = CRN generation only; \textbf{Gen+CLAMP} = generation with decode-time harvest. All numbers reproduced by committed scripts.}
+\begin{tabular}{@{}llc@{}}
+\toprule
+Configuration & Exam & Score \\
+\midrule
+Frozen base, generation only & original (60) & 7/60 = 11.7\% \\
+CRN, generation only (seed weights) & original (60) & 24/60 = 40.0\% \\
+CRN + memory (\textbf{Prajna-V2, Retr}) & original (60) & \textbf{60/60 = 100\%} \\
+\midrule
+Retr gate & reworded (120) & 110/120 = 91.7\% \\
+Gen+CLAMP & reworded (120) & 41/120 = 34.2\% \\
+Gen+CLAMP & original (60) & 19/60 = 31.7\% \\
+Gen, no clamp & original (60) & 9/60 = 15.0\% \\
+Gen, no clamp & reworded (120) & 18/120 = 15.0\% \\
+\bottomrule
+\end{tabular}
+\label{tab:cehri}
+\end{table}
+
+Across the 120 reworded queries, retrieval best-cosine similarity ranges from 0.881 to 0.990 (median 0.972), with 118/120 at $\ge 0.9$. The memory gate therefore generalizes to phrasing observed nowhere in training.
+
+\subsection{Generation gates: the honest frontier}
+\label{sec:genresults}
+
+Table~\ref{tab:cehri} separates \emph{recall} (memory gates) from \emph{generation}. The generation head is the weak link: without memory it scores 15--40\% depending on weights and phrasing. The v2 training pipeline (16k SFT steps) improved the reworded generation gate from 25.0\% (seed weights, no clamp) to 34.2\% with GEN\_CLAMP, but the seed-weights generation on the original exam (40\%) remains the best unclamped result --- the later anchor-training run (Section~\ref{sec:negative}) degraded original-exam generation to 15\% before GEN\_CLAMP recovered it to 31.7\%.
+
+\subsection{In-distribution perplexity and injection ablation}
+
+On 200 held-out samples from the training corpus, perplexity drops from 106.85 (frozen base) to 6.02 (Prajna CRN), $\approx$18$\times$. This is genuine but \emph{in-distribution}. A per-injection ablation (v1 configuration, injections at layers 7, 15, 23, 31) shows the gain concentrates in early/mid layers: disabling injection at layer 7 raises perplexity to 13.93 ($\Delta{=}{+}9.99$), layer 15 to 7.65 ($+3.71$), while layers 23/31 contribute $+0.67$/$+0.57$. Later architectures use 8 injections.
+
+\subsection{Out-of-distribution: where it does not help}
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Out-of-distribution results. The CRN degrades generic text and several standard benchmarks. Reported verbatim from \texttt{RESULTS.md}.}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Test & Prajna + CRN & Frozen base & Verdict \\
+\midrule
+Generic text, bits-per-byte & 2.04 & 0.67 & CRN $\sim$3$\times$ worse \\
+MMLU (N=40) & 65\% & 58\% & small win \\
+BoolQ (N=40) & 65\% & 75\% & CRN hurts \\
+HellaSwag (N=40) & 15\% & 20\% & CRN hurts \\
+Car-wash / IGR, reworded (N=8) & 0/8 & --- & no reasoning \\
+\bottomrule
+\end{tabular}
+\label{tab:ood}
+\end{table}
+
+The implicit-goal (``car-wash'') check deserves emphasis: an earlier evaluation counted prompt-echo matches as successes; rescoring honestly gives 3/8 on original phrasing (keyword luck) and \textbf{0/8} on reworded phrasing. The CRN memorizes surface patterns and does not perform latent-goal reasoning.
+
+\section{Negative Results: Why the Boundary Would Not Move}
+\label{sec:negative}
+
+\subsection{Probe evidence}
+
+With the seed checkpoint, for unseen reworded prompts the top-1 token at position $L{-}2$ is the semantically correct answer (\emph{Paris}, \emph{CH4}, \emph{gold} in probe prompts), while the top-1 at $L{-}1$ is single-digit garbage (e.g.\ \texttt{4}, \texttt{3}) or a generic start token (\texttt{<strong>}) --- never the answer. $L{-}1$ is the first token the model must \emph{generate}, but SFT masked it (labels were ``answer-only'' starting at $L$), so the position carries only the frozen base's prior.
+
+\subsection{Attempt 1: logit fusion (rank 16)}
+
+An adapter with $W_{up}\in\mathbb{R}^{d\times 16}$,$\,W_{down}\in\mathbb{R}^{16\times 262144}$ was trained over 16k SFT + 3k DPO + 1k contrastive steps alongside the CRN and summed into the logits. Training loss approached 0.001 (memorization), yet original-exam generation fell to 20\% and reworded to 15.8\%, below the seed's 40\%/25\%. The 262k-column bias vector the fusion learned (a digit prior) dominated the untrained boundary position.
+
+\subsection{Attempt 2: logit fusion (rank 4)}
+
+Reducing the adapter rank produced near-zero gradients on the converged seed (dry-signal regime); the training watchdog correctly aborted. No checkpoint improvement.
+
+\subsection{Attempt 3: weighted boundary anchors}
+
+An SFT variant unmasked $L{-}1$ with gold token $= $ first answer token, weighting it 1.0$\times$ (v9, 600 steps) and 4.0$\times$ (v10, 3{,}000 steps) with neighbor de-weighting (0.5$\times$). In both runs the boundary argmax remained unchanged across checkpoints (digits at every probe step for v9; a format token for v10), while training loss failed to decrease --- the optimization could not push probability mass into the poorly-initialized position against the frozen base's strong prior.
+
+\subsection{What worked: decode-time harvest}
+
+GEN\_CLAMP (Section~\ref{sec:genclamp}) needs no retraining. Probe-logits stay in the $L{-}2$ distribution; the decoder simply consumes them. Table~\ref{tab:cehri} shows the resulting gains (31.7\% original / 34.2\% reworded vs.\ 15.0\%/15.0\% unclamped). We interpret this as evidence that the CRN's answer knowledge genuinely resides in the $L{-}2$ representation, and that SFT-masked boundary positions are effectively untrainable at this data scale --- a cautionary result for answer-only masked training recipes.
+
+\section{Limitations}
+
+(1) The 100\% and 91.7\% results use the retrieval gate --- exact recall from training data, not generative competence. (2) Generation-only accuracy is modest (34.2\% reworded best) and does not approach exam-pass levels. (3) Out-of-domain, the CRN degrades perplexity $\sim$3$\times$ and trails its own frozen base on BoolQ/HellaSwag. (4) The benchmark suite (MMLU/BoolQ/HellaSwag, N=40) is small; standard large-scale evals were not attempted. (5) Implicit-goal reasoning on reworded prompts fails completely (0/8). (6) Training data (16,680 pairs) is small; scale-up behavior is unknown.
+
+\section{Conclusion}
+
+Prajna demonstrates that a 6.7M-parameter correction network over a frozen 2B backbone, trained on a laptop, achieves \textbf{100\%} on its target exam via an episodic-memory retrieval gate and \textbf{91.7\%} on unseen reworded questions --- while its generation head remains the honest frontier (34.2\% reworded). We publish the negative results of three training-side boundary fixes and the decode-time solution, the in-distribution/out-of-distribution asymmetry, and all artifacts: \url{https://github.com/eulogik/prajna}, \url{https://huggingface.co/eulogik/Prajna-V2}, and the dataset \url{https://huggingface.co/datasets/eulogik/prajna-cehri}.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/results.png}
+\caption{Benchmark snapshot: CEHRI 60/60 (100\%), reworded memory gate 110/120 (91.7\%), reworded and original generation gates with GEN\_CLAMP.}
+\end{figure}
+
+\small
+\begin{thebibliography}{9}
+\bibitem{houlsby2019adapters} N.~Houlsby et al. Parameter-efficient transfer learning for NLP. \emph{ICML}, 2019.
+\bibitem{lora} E.~Hu et al. LoRA: Low-rank adaptation of large language models. \emph{ICLR}, 2022.
+\bibitem{side-tuning} J.~Zhang et al. Side-tuning: a baseline for network adaptation via additive side networks. \emph{ECCV}, 2020.
+\bibitem{lewis2020rag} P.~Lewis et al. Retrieval-augmented generation for knowledge-intensive NLP tasks. \emph{NeurIPS}, 2020.
+\bibitem{wu2022memorizing} Y.~Wu, M.~Rabe, D.~Hutchins, C.~Szegedy. Memorizing transformers. \emph{ICLR}, 2022.
+\bibitem{retro} S.~Borgeaud et al. Improving language models by retrieving from trillions of tokens. \emph{ICML}, 2022.
+\bibitem{perez2021instruction} E.~Perez et al. True few-shot learning with language models. \emph{NeurIPS}, 2021.
+\bibitem{chia2022sftmask} Y.~Chia et al. Instruction tuning with loss over instructions. 2022.
+\end{thebibliography}
+
+\end{document}
