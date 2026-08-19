@@ -4,6 +4,10 @@
 **Last updated:** August 19, 2026  
 **Current phase:** **FINAL — Paper arXiv-ready, v2 released (HF + GitHub), honest assessment complete.** Next: arXiv submission + follow-up experiments (LoRA baseline, paraphrase-robust training).
 
+**Quick next steps** (details in [§6E](#6e-phase-5-finalization--paper--v2-release-complete-aug-19-2026)):
+- **Paper:** (1) submit to arXiv now, (2) optional NeurIPS 2026 workshop Aug 29, (3) ICLR 2027 paper deadline Sep 25, (4) re-upload `hf_prajna_v2/` to HF
+- **Model:** (1) LoRA baseline at same 6.7M budget, (2) paraphrase-robust training, (3) format-variation test, (4) gate-freeze + gradient-norm verification, (5) memory ablation, (6) scale up
+
 ---
 
 ## Table of Contents
