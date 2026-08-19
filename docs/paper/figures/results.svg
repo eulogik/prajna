@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#2563eb"/></linearGradient>
+    <linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#059669"/></linearGradient>
+    <linearGradient id="go" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#d97706"/></linearGradient>
+    <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ef4444"/><stop offset="100%" stop-color="#dc2626"/></linearGradient>
+  </defs>
+  <rect width="1000" height="520" fill="white"/>
+  <text x="500" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#111">Prajna V2 — Benchmark Snapshot</text>
+  <text x="500" y="56" text-anchor="middle" font-size="13" fill="#666">Measured on-device (Mac Mini M4, MPS). Released seed checkpoint (dpo\_v2\_final\_seed + memory\_v2\_final\_seed).</text>
+
+  <!-- Released seed cards (top row) -->
+  <text x="250" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#3b82f6">RELEASED SEED (reproducible)</text>
+  <rect x="40" y="105" width="200" height="130" rx="14" fill="url(#gb)"/>
+  <text x="140" y="140" text-anchor="middle" font-size="14" fill="#bfdbfe">CEHRI exam</text>
+  <text x="140" y="180" text-anchor="middle" font-size="42" font-weight="800" fill="white">60/60</text>
+  <text x="140" y="210" text-anchor="middle" font-size="13" fill="#bfdbfe">memory-augmented · 100%</text>
+
+  <rect x="260" y="105" width="200" height="130" rx="14" fill="url(#gg)"/>
+  <text x="360" y="140" text-anchor="middle" font-size="14" fill="#bbf7d0">Reworded exam</text>
+  <text x="360" y="180" text-anchor="middle" font-size="42" font-weight="800" fill="white">110/120</text>
+  <text x="360" y="210" text-anchor="middle" font-size="13" fill="#bbf7d0">memory gate · 91.7%</text>
+
+  <rect x="480" y="105" width="200" height="130" rx="14" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="580" y="140" text-anchor="middle" font-size="14" fill="#64748b">Original generation</text>
+  <text x="580" y="180" text-anchor="middle" font-size="42" font-weight="800" fill="#334155">12/60</text>
+  <text x="580" y="210" text-anchor="middle" font-size="13" fill="#94a3b8">CRN only · 20.0%</text>
+
+  <rect x="700" y="105" width="200" height="130" rx="14" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="800" y="140" text-anchor="middle" font-size="14" fill="#64748b">Reworded generation</text>
+  <text x="800" y="180" text-anchor="middle" font-size="42" font-weight="800" fill="#334155">30/120</text>
+  <text x="800" y="210" text-anchor="middle" font-size="13" fill="#94a3b8">CRN only · 25.0%</text>
+
+  <!-- Separator -->
+  <line x1="40" y1="260" x2="960" y2="260" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="6"/>
+  <text x="500" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#94a3b8">ANCHOR-TRAINED (experimental — generation had collapsed, GEN\_CLAMP recovery)</text>
+
+  <!-- Anchor-trained cards (bottom row) -->
+  <rect x="170" y="300" width="240" height="120" rx="14" fill="url(#go)"/>
+  <text x="290" y="330" text-anchor="middle" font-size="14" fill="#fef3c7">Original generation</text>
+  <text x="290" y="370" text-anchor="middle" font-size="42" font-weight="800" fill="white">19/60</text>
+  <text x="290" y="400" text-anchor="middle" font-size="13" fill="#fef3c7">GEN\_CLAMP · 31.7%</text>
+
+  <rect x="490" y="300" width="240" height="120" rx="14" fill="url(#gr)"/>
+  <text x="610" y="330" text-anchor="middle" font-size="14" fill="#fecaca">Reworded generation</text>
+  <text x="610" y="370" text-anchor="middle" font-size="42" font-weight="800" fill="white">41/120</text>
+  <text x="610" y="400" text-anchor="middle" font-size="13" fill="#fecaca">GEN\_CLAMP · 34.2%</text>
+
+  <!-- Frozen base -->
+  <rect x="420" y="440" width="160" height="50" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="500" y="462" text-anchor="middle" font-size="12" fill="#94a3b8">Frozen base only</text>
+  <text x="500" y="480" text-anchor="middle" font-size="16" font-weight="700" fill="#64748b">7/60 · 11.7%</text>
+</svg>

@@ -21,7 +21,7 @@
   </g>
   <text x="60" y="300" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#111">What that means</text>
   <text x="60" y="326" font-family="system-ui, sans-serif" font-size="13.5" fill="#444">Prajna passes its target exam (CEHRI) with episodic-memory retrieval and answers 92% of unseen-paraphrase variants,</text>
-  <text x="60" y="348" font-family="system-ui, sans-serif" font-size="13.5" fill="#444">using 0.3% trainable parameters (6.7M) on a frozen 2B base — no GPU, no API, trained and evaluated fully on a laptop.</text>
+  <text x="60" y="348" font-family="system-ui, sans-serif" font-size="13.5" fill="#444">using 0.15% trainable parameters (6.7M) on a frozen Gemma 4 E2B base — no GPU, no API, trained and evaluated fully on a laptop.</text>
   <text x="60" y="380" font-family="system-ui, sans-serif" font-size="12.5" fill="#777">Honesty policy: every number above is reproduced by the eval scripts in this repo; see RESULTS.md and the HF model card.</text>
   <text x="60" y="405" font-family="system-ui, sans-serif" font-size="12.5" fill="#777">Generation without memory does not generalize — measured, documented, and disclosed in the limitations section.</text>
 </svg>

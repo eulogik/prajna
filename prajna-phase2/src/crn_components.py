@@ -201,8 +201,38 @@ class SkillComposer(nn.Module):
         return x + perturbation
 
 
+class LogitFusion(nn.Module):
+    """Logit-level fusion adapter (Tier-0 fix).
+
+    The hidden-state perturbation path (CRN components -> frozen lm_head) has a
+    fundamental signal problem: when the base's probability mass is spread, the
+    gradient of the token loss w.r.t. the hidden correction is ~0, so corrections
+    collapse to noise. This module instead produces a low-rank *logit delta* in
+    vocab space, fused additively with the base logits:
+
+        final_logits = base_logits + gate * up(gelu(down(hidden)))
+
+    A small head gap can now move logits directly (dense, strong gradients),
+    independent of how flat the frozen head's distribution is. Init near zero so
+    training starts from the proven base-path behavior.
+    """
+    def __init__(self, d_model, vocab, rank=16, init_scale=1e-3, gate_init=1.0, dropout=0.0):
+        super().__init__()
+        self.rank = rank
+        self.down = nn.Linear(d_model, rank, bias=False)
+        self.up = nn.Linear(rank, vocab, bias=True)
+        nn.init.normal_(self.up.weight, std=init_scale)
+        self.up.bias.data.zero_()
+        self.gate = nn.Parameter(torch.tensor(float(gate_init)))
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, hidden):
+        x = self.drop(F.gelu(self.down(hidden)))
+        return self.gate * self.up(x)
+
+
 # ============ Student Model ============
-CRN_PREFIXES = ('crn_mix', 'resonance.', 'skills.', 'reflection.', 'reflection_gate', 'mem.')
+CRN_PREFIXES = ('crn_mix', 'resonance.', 'skills.', 'reflection.', 'reflection_gate', 'mem.', 'logit_fusion.')
 
 def get_crn_state_dict(model):
     return {k: v.cpu() for k, v in model.state_dict().items()
@@ -243,6 +273,12 @@ class PrajnaStudentMultiLayer(nn.Module):
         self.reflection = ReflectiveLoop(d_model=self.d_model, num_corrections=num_corrections).to(crn_dev)
         self.skills = SkillComposer(d_model=self.d_model, num_skills=num_skills, skill_rank=skill_rank, top_k=top_k).to(crn_dev)
         self.resonance = ResonanceAttention(d_model=self.d_model, num_heads=4, num_frequencies=num_frequencies, top_k=top_k).to(crn_dev)
+        self.logit_fusion = None
+        if os.environ.get('FUSION_OFF', '0') != '1':
+            self.logit_fusion = LogitFusion(self.d_model, self.vocab,
+                                            rank=int(os.environ.get('FUSION_RANK', '4')),
+                                            gate_init=float(os.environ.get('FUSION_GATE', '0.3')),
+                                            dropout=float(os.environ.get('FUSION_DROPOUT', '0.15'))).to(crn_dev)
         print(f'CRN: {sum(p.numel() for p in self.get_params()):,} params | Injections: {self.num_injections} at {self.inject_indices}')
 
     def _collect_hidden(self, input_ids, past_key_values=None):
@@ -288,9 +324,14 @@ class PrajnaStudentMultiLayer(nn.Module):
             corrections = corrections + read_out.unsqueeze(1)
         hidden_corrected = final_hidden.detach().to(torch.float32) + corrections
         logits = self.base_model.lm_head(hidden_corrected.to(torch.float16))
+        # Logit-level fusion (optional): dense signal in vocab space, additive to
+        # base logits. Disable with FUSION_OFF=1 for the pure-CRN baseline path.
+        if self.logit_fusion is not None:
+            fused = logits.float() + self.logit_fusion(hidden_corrected)
+            return fused, final_hidden
         return logits, final_hidden
 
-    def forward(self, input_ids, labels=None, eos_weight=1.0):
+    def forward(self, input_ids, labels=None, eos_weight=1.0, pos_weights=None):
         outputs = self._collect_hidden(input_ids)
         logits, final_hidden = self._apply_crn(outputs, training=self.training)
         loss = None
@@ -300,13 +341,14 @@ class PrajnaStudentMultiLayer(nn.Module):
                 labels[:, 1:].reshape(-1), ignore_index=-100, reduction='none'
             )
             per_token_loss = per_token_loss.reshape(input_ids.shape[0], -1)
+            if pos_weights is None:
+                pos_weights = torch.ones_like(labels, dtype=torch.float32)
+            loss_weights = pos_weights[:, 1:] if pos_weights.shape[1] == labels.shape[1] else pos_weights
             if eos_weight != 1.0:
                 eos_mask = (labels[:, 1:] == self.tok.eos_token_id).float()
-                weights = 1.0 + (eos_weight - 1.0) * eos_mask
-                effective_weights = weights * (labels[:, 1:] != -100).float()
-                loss = (per_token_loss * effective_weights).sum() / effective_weights.sum()
-            else:
-                loss = per_token_loss.mean()
+                loss_weights = loss_weights * (1.0 + (eos_weight - 1.0) * eos_mask)
+            effective_weights = loss_weights * (labels[:, 1:] != -100).float()
+            loss = (per_token_loss * effective_weights).sum() / effective_weights.sum().clamp(min=1e-6)
         if self.training and labels is not None:
             self.mem.write(final_hidden[:, -1, :].mean(dim=0).to(torch.float32), force=False)
         return {'loss': loss, 'logits': logits}
@@ -314,6 +356,8 @@ class PrajnaStudentMultiLayer(nn.Module):
     def get_params(self):
         params = (self.mem.get_parameters() + list(self.reflection.parameters()) +
                   list(self.skills.parameters()) + list(self.resonance.parameters()))
+        if self.logit_fusion is not None:
+            params += list(self.logit_fusion.parameters())
         params.append(self.crn_mix)
         params.append(self.reflection_gate)
         return params

@@ -18,12 +18,12 @@
   <path d="M250 167 H300" stroke="#4f8cff" stroke-width="2.5" marker-end="url(#ar)"/>
   <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#4f8cff"/></marker></defs>
   <rect x="310" y="110" width="210" height="114" rx="10" fill="#121a3c" stroke="#9a6bff" stroke-width="1.5"/>
-  <text x="415" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#e8ecff">Gemma 4 E2B (frozen, 2B)</text>
+  <text x="415" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#e8ecff">Gemma 4 E2B (frozen, 4.65B text LM)</text>
   <text x="415" y="162" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">hidden states at 8 depths</text>
   <text x="415" y="184" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">no_grad() — 0 trainable</text>
   <text x="415" y="206" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">layers 3,7,11,15,19,23,27,31</text>
   <rect x="580" y="110" width="290" height="114" rx="10" fill="#0e1530" stroke="#4f8cff" stroke-width="1.5"/>
-  <text x="725" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#e8ecff">CRN — 6.7M params (0.3%)</text>
+  <text x="725" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#e8ecff">CRN — 6.7M params (0.15%)</text>
   <text x="725" y="164" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">ResonanceAttention · SkillComposer</text>
   <text x="725" y="184" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">ReflectiveLoop · EpisodicMemory</text>
   <text x="725" y="204" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11.5" fill="#8fa0d8">sigmoid-gated correction signals</text>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="gbar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="320" fill="white"/>
+  <text x="400" y="32" text-anchor="middle" font-size="17" font-weight="700" fill="#111">Figure 4. Per-layer ablation: perplexity increase when disabling injection at each depth.</text>
+  <text x="400" y="52" text-anchor="middle" font-size="12" fill="#666">V1 config (4 injections at layers 7, 15, 23, 31). Baseline = 3.94 ppl (all injections on).</text>
+  <!-- axes -->
+  <line x1="120" y1="260" x2="720" y2="260" stroke="#ccc" stroke-width="1"/>
+  <line x1="120" y1="80" x2="120" y2="260" stroke="#ccc" stroke-width="1"/>
+  <!-- y-axis labels -->
+  <text x="110" y="264" text-anchor="end" font-size="11" fill="#888">0</text>
+  <text x="110" y="172" text-anchor="end" font-size="11" fill="#888">+5</text>
+  <text x="110" y="84" text-anchor="end" font-size="11" fill="#888">+10</text>
+  <text x="60" y="172" text-anchor="middle" font-size="11" fill="#888" transform="rotate(-90,60,172)">Δppl (higher = more impact)</text>
+  <!-- bars -->
+  <rect x="175" y="80" width="100" height="180" rx="4" fill="url(#gbar)"/>
+  <text x="225" y="72" text-anchor="middle" font-size="12" font-weight="600" fill="#1d4ed8">+9.99</text>
+  <text x="225" y="278" text-anchor="middle" font-size="12" fill="#444">Layer 7</text>
+
+  <rect x="335" y="148" width="100" height="112" rx="4" fill="url(#gbar)"/>
+  <text x="385" y="140" text-anchor="middle" font-size="12" font-weight="600" fill="#1d4ed8">+3.71</text>
+  <text x="385" y="278" text-anchor="middle" font-size="12" fill="#444">Layer 15</text>
+
+  <rect x="495" y="240" width="100" height="20" rx="4" fill="#93c5fd"/>
+  <text x="545" y="232" text-anchor="middle" font-size="12" font-weight="600" fill="#60a5fa">+0.67</text>
+  <text x="545" y="278" text-anchor="middle" font-size="12" fill="#444">Layer 23</text>
+
+  <rect x="655" y="243" width="100" height="17" rx="4" fill="#bfdbfe"/>
+  <text x="705" y="235" text-anchor="middle" font-size="12" font-weight="600" fill="#93c5fd">+0.57</text>
+  <text x="705" y="278" text-anchor="middle" font-size="12" fill="#444">Layer 31</text>
+
+  <text x="400" y="308" text-anchor="middle" font-size="11" fill="#888">All gains concentrate in early/mid layers; later depths contribute marginally.</text>
+</svg>

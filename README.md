@@ -1,6 +1,6 @@
 # 🧠 Prajna — Cognitive Resonance Network (CRN)
 
-> **A 6.7M-parameter trainable "cortex" inside a frozen 2B Gemma model — trained and
+> **A 6.7M-parameter trainable "cortex" inside a frozen Gemma 4 E2B model — trained and
 > run entirely on a Mac Mini M4. No GPU. No API. No cloud bill.**
 >
 > Prajna-V2 passes the CEHRI licensing exam **60/60 (100%)** with retrieval-augmented
@@ -47,13 +47,14 @@
 
 It is a **Cognitive Resonance Network (CRN)** — a small, trainable network injected
 into the hidden states of a **frozen** large language model (Gemma 4 E2B). The base
-model never receives gradients; only the CRN's **6,721,432 parameters (0.3% of the
-base)** are trained, using **SFT → DPO → Contrastive** stages on a **Mac Mini M4
-(16 GB, CPU + MPS)**.
+model never receives gradients; only the CRN's **6,721,444 parameters (0.15% of the
+4.65B-parameter text module)** are trained, using **SFT → DPO → Contrastive** stages
+on a **Mac Mini M4 (16 GB, CPU + MPS)**.
 
 Prajna answers the research question: *can a tiny trainable subsystem turn a frozen
-2B model into a high-accuracy examiner-passer on a specific domain, using retrieval
-memory instead of a bigger model?* **Yes — 60/60 on CEHRI, no API calls, no GPU.**
+Gemma 4 E2B model into a high-accuracy examiner-passer on a specific domain, using
+retrieval memory instead of a bigger model?* **Yes — 60/60 on CEHRI, no API calls,
+no GPU.**
 
 >
 
@@ -63,8 +64,8 @@ memory instead of a bigger model?* **Yes — 60/60 on CEHRI, no API calls, no GP
 |---|---|---|
 | **Prajna-V2: CRN + episodic-memory retrieval** | **60/60** | **100% — exam passed** ✅ |
 | Prajna-V2, reworded exam (unseen phrasing), memory gate | 110/120 | 91.7% |
-| Prajna-V2, CRN generation only (GEN_CLAMP) | 19/60 original · 41/120 reworded | 31.7% / 34.2% |
-| CRN adapter without retrieval memory | 24/60 | 40% |
+| Prajna-V2 (released seed), CRN generation only | 12/60 original · 30/120 reworded | 20.0% / 25.0% |
+| Prajna-V2 (anchor-trained), generation + GEN_CLAMP | 19/60 original · 41/120 reworded | 31.7% / 34.2% |
 | Frozen Gemma 4 E2B alone (no adapter) | 7/60 | 11.7% — fails 88% |
 
 **Perplexity on its training domain: 106.85 → 6.02 (≈18× lower)** with the same
@@ -78,8 +79,8 @@ frozen backbone — an ablative, in-distribution measurement.
 
 1. **Zero cloud, zero API.** Every number here was produced on one laptop. No
    OpenAI/Anthropic calls, no GPU rental, no telemetry.
-2. **0.3% of the params.** 6.7M trainable parameters reshape a frozen 2B model's
-   behavior — a 6.7M-parameter deployment story for edge devices.
+2. **0.15% of the params.** 6.7M trainable parameters reshape a frozen Gemma 4
+   E2B's behavior — a 6.7M-parameter deployment story for edge devices.
 3. **Reproducible.** One-command evals (`eval_cehri_retrieval.py`) re-verify the
    60/60. Weights, retrieval table, memory and eval scripts are all public.
 4. **Honest by design.** The limitations are documented alongside the wins
@@ -93,7 +94,7 @@ frozen backbone — an ablative, in-distribution measurement.
 ```
 Input tokens
    ↓
-[Gemma 4 E2B — frozen, 40 layers]
+[Gemma 4 E2B — frozen, 35 layers]
    ↓  hidden states extracted at layers 3, 7, 11, 15, 19, 23, 27, 31
 CRN Injection (sigmoid-gated crn_mix correction signals):
    ├── ResonanceAttention — frequency-modulated, interpretable cognitive bands
@@ -232,8 +233,10 @@ The exact eval pipeline that produced every number in this README:
 |---|---|
 | `python3 eval_cehri_retrieval.py` | **CEHRI RESULT: 60/60 = 100% PASS** |
 | `python3 eval_cehri_reworded.py --mode retr` | **110/120 = 91.7% PASS** |
-| `GEN_CLAMP=1 python3 eval_cehri_reworded.py --mode gen` | 41/120 = 34.2% |
-| `GEN_CLAMP=1 python3 eval_cehri.py --mode gen` | 19/60 = 31.7% |
+| `python3 eval_cehri.py` | 12/60 = 20.0% |
+| `GEN_CLAMP=0 python3 eval_cehri_reworded.py --mode gen` | 30/120 = 25.0% |
+| `GEN_CLAMP=1 python3 eval_cehri_reworded.py --mode gen` | 30/120 = 25.0% (seed) |
+| Anchor-trained checkpoint + `GEN_CLAMP=1` (negative-results section) | 19/60 = 31.7% · 41/120 = 34.2% |
 
 ---
 
@@ -241,8 +244,8 @@ The exact eval pipeline that produced every number in this README:
 
 **What is Prajna?**
 Prajna is an open-source, on-device, memory-augmented reasoning adapter: 6.7M
-trainable "Cognitive Resonance Network" parameters injected into a frozen 2B Gemma
-model, trained and evaluated entirely on a Mac Mini M4.
+trainable "Cognitive Resonance Network" parameters injected into a frozen Gemma 4
+E2B model, trained and evaluated entirely on a Mac Mini M4.
 
 **How does Prajna pass the CEHRI exam 60/60 without an API?**
 Episodic memory retrieval. The model embeds each question, matches against a
@@ -264,10 +267,10 @@ No. All data generation, training and evaluation used the local frozen Gemma bas
 and deterministic scripts. No external LLM was queried at any point.
 
 **Why is generation-only accuracy lower than memory accuracy?**
-Because the 2B frozen base hasn't been trained to *generate* answers for this
-exam's style, and 16k SFT prompts don't cover reworded phrasing. The memory pillar
-is the production path; generation is the research frontier we documented openly
-(including our failed attempts — see the GEN_CLAMP section above).
+Because the frozen Gemma 4 E2B base hasn't been trained to *generate* answers for
+this exam's style, and 16k SFT prompts don't cover reworded phrasing. The memory
+pillar is the production path; generation is the research frontier we documented
+openly (including our failed attempts — see the GEN_CLAMP section above).
 
 **Is Prajna a general-purpose model?**
 No — and we say so prominently. Out-of-domain perplexity is worse than the base,

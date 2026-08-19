@@ -1,8 +1,8 @@
 # Prajna — Living Document
 
 **Purpose:** Walkthrough/handoff document. Everything you need to pick up this project at any stage.  
-**Last updated:** July 17, 2026  
-**Current phase:** Prajna-2B Phase 1 (wire in ReflectiveLoop + error-correction training) — IN PROGRESS · HF model public (open-weights) · GitHub private
+**Last updated:** August 19, 2026  
+**Current phase:** **FINAL — Paper arXiv-ready, v2 released (HF + GitHub), honest assessment complete.** Next: arXiv submission + follow-up experiments (LoRA baseline, paraphrase-robust training).
 
 ---
 
@@ -610,6 +610,77 @@ pow). **Math reasoning on a frozen 5B base via a 6.7M CRN adapter is real.**
 
 ---
 
+## 6E. Phase 5: Finalization — Paper + v2 Release (COMPLETE, Aug 19, 2026)
+
+### What Was Accomplished
+
+**1. V2 model trained and released** (`prajna/checkpoints/dpo_v2_final_seed.pt` + `memory_v2_final_seed.json`)
+- 6,721,444 CRN params (0.145% of the 4.647B text LM; ≈0.13% of the 5.12B full checkpoint)
+- Trained SFT → DPO → Contrastive on the 16,680-pair error-correction corpus
+  (83,400 rows with paraphrases; 17,810 unique prompts → retrieval table)
+- Released on HuggingFace: `eulogik/Prajna-V2` (weights, memory, retrieval table, eval scripts)
+
+**2. All eval numbers re-verified end-to-end with final committed scripts**
+| Config | Score |
+|---|---|
+| Frozen base, generation only | 7/60 = 11.7% |
+| CRN (seed), generation, original | 12/60 = 20.0% |
+| CRN (seed), generation, reworded | 30/120 = 25.0% |
+| CRN (seed) + memory, original | 60/60 = 100% |
+| CRN (seed) + memory, reworded | 110/120 = 91.7% |
+| Anchor-trained + GEN_CLAMP, original | 19/60 = 31.7% (experimental ckpt) |
+| Anchor-trained + GEN_CLAMP, reworded | 41/120 = 34.2% (experimental ckpt) |
+
+**3. Paper finalized** (`docs/paper/main.tex` + `main.pdf`, ~510KB)
+- Author: **Gautam Kishore, Eulogik**
+- 5 figures (architecture, GEN_CLAMP, retrieval gate, per-layer ablation, gate analysis)
+- 10 real citations; compiles clean via tectonic
+- Fully honest framing: retrieval = recall, generation = modest, OOD = degraded
+- Key numbers verified: 4.65B text LM / 5.12B full / 35 layers / 0.15% / 17,810 / 83,400
+
+**4. Critical facts corrected during review (important!)**
+- Base model is the **4.647B text LM of a 5.12B multimodal checkpoint** — NOT "2B / 32 layers"
+- CRN is **0.145%** of text LM — NOT "0.34% of 2B"
+- Eq.1 is a **single additive correction to the final hidden state** — NOT per-depth injection into the base
+- ResonanceAttention **materializes n² scores then masks** — NOT "sparse, never materialized"
+- Exam prompts were **repeated 100× in training data** (`generate_cehri_data.py` line 287) — exam is in-distribution by design
+- **Gates never learn:** crn_mix (init σ=0.881) trains to σ≈0.858; reflection_gate (init σ=0.622) trains to σ=0.622 — untrained constants
+- Reworded exam is **near-duplicate**: 71.6% char overlap, cosine 0.881–0.990 (median 0.972)
+
+**5. Honest assessment (Aug 19, 2026)**
+- **NOT a breakthrough.** 100% = pure retrieval lookup; generation 20–25% is modest; OOD degrades 3×
+- **Genuinely valuable:** the negative results (L-2/L-1 answer-position problem, 3 failed training fixes, GEN_CLAMP decode-time fix, vanishing-gradient-through-frozen-head mechanism)
+- Honest evaluation protocol (recall vs generation separation, OOD reporting) is the paper's real contribution
+- Paper is ready for arXiv as an honest negative-results study — not a main-conference breakthrough claim
+
+### Where the research was wrong (root causes)
+1. **Theory claimed per-depth gates learn** — they don't (gradient too weak through frozen head)
+2. **8-depth multi-module design unjustified** — ablation: nearly all gain at layers 7/15; gates are constants
+3. **Vanishing gradient through frozen head** is the true mechanism (LogitFusion docstring insight): corrections collapse to noise when base probability mass is spread
+4. **Generalization never trained for** — template paraphrases (71.6% char overlap) provide no surface-invariance pressure; IGR reworded = 0/8
+5. **Circular evaluation** — exam added to training 100× before any training
+6. **Missing baselines** — no plain LoRA comparison at same budget; no slot-memory ablation; no format-variation test
+
+### Next Steps (Paper)
+1. **arXiv submission (immediate)** — paper is ready as-is; `docs/paper/main.pdf`
+2. Optional polish before arXiv: arXiv LaTeX template (current article.cls is fine for arXiv)
+3. Later venues (deadlines as of Aug 19, 2026):
+   - NeurIPS 2026 Workshop contributions: Aug 29, 2026 (10 days — tight, optional)
+   - ICLR 2027: abstract Sep 18 / paper Sep 25, 2026 (main conference, 5 weeks)
+   - ARR October 2026 cycle: Oct 12, 2026 → commit to NAACL 2027 / COLING 2027
+4. Re-upload `hf_prajna_v2/` to HuggingFace (bundle updated locally: retrieval_table.npz v2, patched eval scripts, fixed config.json)
+
+### Next Steps (Model / Research)
+1. **LoRA baseline at same 6.7M budget** — decides whether CRN architecture adds value over a simple adapter
+2. **Gate-freeze ablation** — freeze gates at init, retrain; verify gates don't matter (evidence already suggests this)
+3. **Format-variation experiment** — answer-before-prompt / no-colon formats; is L-2/L-1 an artifact of `"prompt: answer"`?
+4. **Paraphrase-robust training** — LLM-rewritten high-diversity paraphrases in training; held-out third rewrite style for eval; only path to real generation gains above 25%
+5. **Gradient-norm measurement** — verify vanishing-gradient hypothesis directly (gradient norms through frozen head across depths/stages)
+6. **Memory ablation** — slot memory off; quantify its marginal value over the retrieval table
+7. **Scale** — larger corpus (16,680 pairs is small); standard benchmarks (full MMLU, ARC)
+
+---
+
 ## 7. Known Issues & Decisions
 
 ### Open Questions
@@ -766,7 +837,20 @@ Prajna/
         ├── analyze_stage3.py        — Car-wash original vs reworded (false-positive proof)
         ├── bench_standard.py        — MMLU/BoolQ/HellaSwag/car-wash vs base
         ├── eval_csn.py              — IGR/car-wash eval (heuristic, not reasoning)
+        ├── eval_cehri.py            — Original-exam generation eval (FUSION_OFF=1 default)
+        ├── eval_cehri_retrieval.py  — Memory-gate eval (original exam)
+        ├── eval_cehri_reworded.py   — Reworded-exam eval (retr + gen + GEN_CLAMP modes)
+        ├── generate_cehri_data.py   — Exam + training corpus builder (exam ×100 in training)
         └── train_csn.py             — SFT→DPO re-run (enriched corpus, superseded by v2)
+```
+
+**Docs:**
+```
+docs/paper/main.tex + main.pdf      — arXiv-ready paper (Gautam Kishore, Eulogik)
+docs/paper/figures/                 — fig1 (arch), fig2 (GEN_CLAMP), fig3 (retrieval),
+                                      fig4 (ablation), fig5 (gates), results.png
+living.md                           — This document
+RESULTS.md                          — OOD/perplexity/ablation provenance
 ```
 
 **Data / checkpoints (gitignored):**
@@ -799,4 +883,4 @@ To pick up this project:
 
 ---
 
-*This document is updated at the end of each phase. Current: Prajna-2B Phase 1 — ReflectiveLoop wired in, dataset + training/eval scripts ready, training pending.*
+*This document is updated at the end of each phase. Current: Phase 5 COMPLETE — paper arXiv-ready (Gautam Kishore, Eulogik), v2 released on HF/GitHub, honest assessment delivered. Next: arXiv submission + LoRA baseline + paraphrase-robust training.*

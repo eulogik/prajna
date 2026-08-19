@@ -1,0 +1,14 @@
+{
+  "Prajna 2B+CRN": {
+    "mmlu": "26/40",
+    "boolq": "26/40",
+    "hellaswag": "6/40",
+    "carwash": "1/8"
+  },
+  "Gemma-4-E2B (base)": {
+    "mmlu": "23/40",
+    "boolq": "30/40",
+    "hellaswag": "8/40",
+    "carwash": "3/8"
+  }
+}

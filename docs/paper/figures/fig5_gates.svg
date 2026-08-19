@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 340" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="ginit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="gtrained" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="340" fill="white"/>
+  <text x="400" y="32" text-anchor="middle" font-size="17" font-weight="700" fill="#111">Figure 5. Gate values: initialization vs. trained (seed checkpoint).</text>
+  <text x="400" y="52" text-anchor="middle" font-size="12" fill="#666">Both crn_mix and reflection_gate remain essentially at their initialization values after training.</text>
+  <!-- legend -->
+  <rect x="280" y="68" width="14" height="14" rx="3" fill="url(#ginit)"/>
+  <text x="300" y="80" font-size="12" fill="#444">Initialization</text>
+  <rect x="430" y="68" width="14" height="14" rx="3" fill="url(#gtrained)"/>
+  <text x="450" y="80" font-size="12" fill="#444">After training</text>
+  <!-- axes -->
+  <line x1="100" y1="280" x2="760" y2="280" stroke="#ccc" stroke-width="1"/>
+  <line x1="100" y1="100" x2="100" y2="280" stroke="#ccc" stroke-width="1"/>
+  <text x="50" y="195" text-anchor="middle" font-size="11" fill="#888" transform="rotate(-90,50,195)">σ(value)</text>
+  <!-- y-axis labels -->
+  <text x="90" y="284" text-anchor="end" font-size="11" fill="#888">0.0</text>
+  <text x="90" y="215" text-anchor="end" font-size="11" fill="#888">0.5</text>
+  <text x="90" y="108" text-anchor="end" font-size="11" fill="#888">1.0</text>
+  <!-- crn_mix group -->
+  <text x="200" y="298" text-anchor="middle" font-size="12" font-weight="600" fill="#333">crn_mix</text>
+  <rect x="145" y="104" width="45" height="176" rx="4" fill="url(#ginit)"/>
+  <text x="168" y="98" text-anchor="middle" font-size="11" fill="#d97706">0.881</text>
+  <rect x="210" y="110" width="45" height="170" rx="4" fill="url(#gtrained)"/>
+  <text x="233" y="104" text-anchor="middle" font-size="11" fill="#059669">0.858</text>
+  <!-- reflection_gate group -->
+  <text x="520" y="298" text-anchor="middle" font-size="12" font-weight="600" fill="#333">reflection_gate</text>
+  <rect x="465" y="168" width="45" height="112" rx="4" fill="url(#ginit)"/>
+  <text x="488" y="162" text-anchor="middle" font-size="11" fill="#d97706">0.622</text>
+  <rect x="530" y="168" width="45" height="112" rx="4" fill="url(#gtrained)"/>
+  <text x="553" y="162" text-anchor="middle" font-size="11" fill="#059669">0.622</text>
+
+  <text x="400" y="325" text-anchor="middle" font-size="11" fill="#888">Gate parameters did not learn to differentiate depths: all fire at near-uniform strength.</text>
+</svg>

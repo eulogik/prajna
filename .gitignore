@@ -16,3 +16,7 @@ prajna/state.json
 logs/
 __pycache__/
 *.pyc
+
+# checkpoints bundles (never commit)
+prajna-phase2/src/prajna/
+prajna/checkpoints-*.zip

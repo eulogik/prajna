@@ -24,8 +24,8 @@ os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
 CKPT_DIR = './prajna/checkpoints'
 DATA_DIR = './prajna/data'
 STATE_FILE = f'{CKPT_DIR}/state_v2.json'
-SEED_CKPT = f'{CKPT_DIR}/dpo_final.pt'                 # proven foundation (read-only)
-EC_DATA = f'{DATA_DIR}/error_correction_pairs.json'    # base mistakes + correct
+SEED_CKPT = os.environ.get('SEED_CKPT', f'{CKPT_DIR}/dpo_final.pt')   # proven foundation (read-only)
+EC_DATA = os.environ.get('EC_DATA', f'{DATA_DIR}/error_correction_pairs_v2.json')  # base mistakes + correct (+ paraphrase variants)
 
 SFT_STEPS = int(os.environ.get('SFT_V2_STEPS', '2000'))
 DPO_STEPS = int(os.environ.get('DPO_V2_STEPS', '500'))
@@ -46,6 +46,42 @@ MAX_LENGTH = int(os.environ.get('CRN_MAXLEN', '96'))
 DEVICE = os.environ.get('CRN_DEVICE', 'cpu')
 INJECT_EVERY = 4
 CRN_MIX_INIT = 2.0
+# Surface-invariance consistency: every CONSISTENCY_EVERY SFT steps, also train
+# on a paraphrase-variant of the same prompt with a KL tie at the answer start.
+CONSISTENCY_EVERY = int(os.environ.get('CONSISTENCY_EVERY', '0'))
+CONSISTENCY_WEIGHT = float(os.environ.get('CONSISTENCY_WEIGHT', '0.1'))
+ANCHOR_WEIGHT = float(os.environ.get('ANCHOR_WEIGHT', '4.0'))
+# Collapse watchdog: if the reflective corrections have collapsed to noise by
+# this step, abort before sinking thousands of steps into a dead channel.
+WATCHDOG_STEP = int(os.environ.get('WATCHDOG_STEP', '200'))
+WATCHDOG_MIN_STD = float(os.environ.get('WATCHDOG_MIN_STD', '0.7'))
+
+def adapter_grad_norm(student):
+    g = student.logit_fusion.up.weight.grad
+    return g.norm().item() if g is not None else None
+
+def watch_corrections(student, step, avg_loss=0.0):
+    """Abort only if NOTHING is learning. The correction channel can collapse to
+    noise (v6 seed has std~0.01) while the logit-fusion adapter learns — that is
+    the new dense-signal channel. Abort iff corrections are dead AND the adapter
+    receives no meaningful gradients (accumulated grad norm < 1e-4) AND the loss
+    is NOT already near-converged (a converged model legitimately has dry
+    gradients)."""
+    std = student.reflection.correction_directions.detach().std().item()
+    conf = student.reflection.confidence_scale.detach().abs().item()
+    gate = torch.sigmoid(student.logit_fusion.gate).item() if getattr(student, 'logit_fusion', None) is not None else float('nan')
+    up_std = student.logit_fusion.up.weight.detach().std().item() if getattr(student, 'logit_fusion', None) is not None else float('nan')
+    up_grad = adapter_grad_norm(student) if getattr(student, 'logit_fusion', None) is not None else None
+    if step == WATCHDOG_STEP:
+        if std < WATCHDOG_MIN_STD and up_grad is not None and up_grad < 1e-4 and avg_loss > 0.2:
+            print(f'  [WATCHDOG] step {step}: corrections std={std:.4f} AND adapter grad norm={up_grad:.2e} '
+                  f'(dead) AND loss={avg_loss:.4f} (not converged) — nothing is learning. '
+                  f'Aborting run (change lr/signal, not steps).', flush=True)
+            sys.exit(1)
+        if std < WATCHDOG_MIN_STD:
+            print(f'  [WATCHDOG] step {step}: corrections collapsed (std={std:.4f}) but adapter '
+                  f'(grad={up_grad}) or loss ({avg_loss:.4f}) shows learning — proceeding.', flush=True)
+    return std, conf, gate, up_std, up_grad
 
 def load_state():
     if os.path.exists(STATE_FILE):
@@ -55,13 +91,14 @@ def load_state():
 def save_state(s):
     with open(STATE_FILE, 'w') as f: json.dump(s, f, indent=2)
 
+def step_of(f, prefix=''):
+    try: return int(f.split(f'/{prefix}_')[-1].split('.pt')[0])
+    except: return -1
+
 def find_latest(prefix):
     fs = glob.glob(f'{CKPT_DIR}/{prefix}_*.pt')
     if not fs: return None
-    def step_of(f):
-        try: return int(f.split(f'/{prefix}_')[-1].split('.pt')[0])
-        except: return -1
-    return sorted(fs, key=step_of)[-1]
+    return sorted(fs, key=lambda f: step_of(f, prefix))[-1]
 
 def recent_avg(losses, n=None):
     n = n or LOG_EVERY
@@ -70,6 +107,18 @@ def recent_avg(losses, n=None):
     return sum(losses[-n:]) / len(losses[-n:])
 
 class Student(PrajnaStudentMultiLayer):
+    def forward_consistent(self, ids, labels, var_ids, var_labels, pre_len, var_pre_len,
+                           pos_weights=None, var_pos_weights=None, eos_weight=1.0, cons_weight=0.1):
+        """SFT forward with surface-invariance: CE on the main row + CE on a
+        paraphrase-variant row of the same prompt + KL between the two answer-
+        start logit distributions (forces the adapter to ignore surface form)."""
+        main = self(ids, labels, eos_weight=eos_weight, pos_weights=pos_weights)
+        var = self(var_ids, var_labels, eos_weight=eos_weight, pos_weights=var_pos_weights)
+        p1 = F.log_softmax(main['logits'][0, pre_len - 1, :], dim=-1)
+        p2 = F.softmax(var['logits'][0, var_pre_len - 1, :], dim=-1)
+        kl = F.kl_div(p1, p2, reduction='batchmean').clamp(max=50.0)
+        return {'loss': (main['loss'] + var['loss'] + cons_weight * kl) / 2.0,
+                'kl': kl.item()}
     def forward_dpo(self, chosen_ids, rejected_ids):
         logps_c = self._dpo_logps(chosen_ids)
         logps_r = self._dpo_logps(rejected_ids)
@@ -115,24 +164,50 @@ class ECDataset(Dataset):
         return {'chosen_ids': c['input_ids'].squeeze(), 'rejected_ids': r['input_ids'].squeeze()}
 
 class ECSFTDataset(Dataset):
+    """Error-correction pairs for SFT. Rows are grouped into aid-blocks of 5
+    (orig + 4 paraphrase variants of the same prompt). Each item returns the
+    main row plus ONE sibling variant row of the same aid, so the trainer can
+    enforce surface-invariance (consistency KL at the answer start)."""
     def __init__(self, path, tok, ml):
         with open(path) as f: self.p = json.load(f)
         self.tok, self.ml = tok, ml
+        self.prompt_toks = {}
     def __len__(self): return len(self.p)
-    def __getitem__(self, i):
-        s = self.p[i]
+    def _encode(self, s):
         text = f"{s['prompt']}: {s['chosen']}{self.tok.eos_token}"
         enc = self.tok(text, truncation=True, max_length=self.ml, padding='max_length', return_tensors='pt')
         ids = enc['input_ids'].squeeze()
         labels = ids.clone()
         labels[enc['attention_mask'].squeeze() == 0] = -100
-        # Mask the prompt prefix (incl. separator): CRN is only trained to
-        # produce the ANSWER. Prompt tokens are easy for the base model, so
-        # including them lets gradients shrink corrections toward zero.
         pre_ids = self.tok(f"{s['prompt']}: ", truncation=True, max_length=self.ml,
                            return_tensors='pt')['input_ids'].squeeze()
         labels[:pre_ids.shape[0]] = -100
-        return {'input_ids': ids, 'labels': labels}
+        # ANCHOR: unmask the answer-start position (the last prompt token). At
+        # inference this is the first decoded position, but SFT masked it, so the
+        # model's argmax there was garbage ('4' instead of the answer start).
+        # Gold for position pre_len-1 = the first answer token. Weight it HIGH
+        # (4x) so the boundary is not absorbed into the answer-token average.
+        pre_len = pre_ids.shape[0]
+        weights = torch.ones(self.ml, dtype=torch.float32) * 0.25   # padding weight
+        weights[enc['attention_mask'].squeeze() == 1] = 1.0
+        if pre_len < ids.shape[0]:
+            labels[pre_len - 1] = ids[pre_len]
+            weights[pre_len - 1] = ANCHOR_WEIGHT
+            if pre_len >= 3:
+                weights[pre_len - 2] = 0.5
+                weights[pre_len - 3] = 0.5
+        else:
+            weights[pre_len - 1] = ANCHOR_WEIGHT
+        return ids, labels, pre_len, weights
+
+    def __getitem__(self, i):
+        s = self.p[i]
+        ids, labels, pre_len, weights = self._encode(s)
+        j = (i // 5) * 5 + ((i + 1) % 5)          # sibling variant, same aid block
+        v = self.p[j]
+        v_ids, v_labels, v_pre_len, v_weights = self._encode(v)
+        return {'input_ids': ids, 'labels': labels, 'pre_len': pre_len, 'weights': weights,
+                'var_ids': v_ids, 'var_labels': v_labels, 'var_pre_len': v_pre_len, 'var_weights': v_weights}
 
 class ECContrastiveDataset(Dataset):
     def __init__(self, path, tok, ml):
@@ -163,27 +238,46 @@ if DEVICE == 'mps':
 def resolve_resume():
     """Pick the most advanced checkpoint so a restart continues from REAL weights.
 
-    Always seeding from SEED_CKPT (dpo_final.pt) would discard any partial
-    SFT/DPO/CON progress saved before a crash. Prefer the latest real ckpt."""
+    Chronological scoring: sft_v2_N < dpo_v2_N < con_v2_N (numbered saves during
+    each stage). dpo_v2_final.pt is the post-all-stages final output and is only
+    used when no numbered save exists; likewise sft_v2_final.pt. SEED_CKPT last.
+    """
+    cands = []
+    for prefix, rank in (('sft_v2', 1), ('dpo_v2', 2), ('con_v2', 3)):
+        for f in glob.glob(f'{CKPT_DIR}/{prefix}_*.pt'):
+            s = step_of(f)
+            if s >= 0:
+                cands.append((rank, s, f))
+    if cands:
+        _, _, p = max(cands)
+        return p, os.path.basename(p)
     for fn in ('dpo_v2_final.pt', 'sft_v2_final.pt'):
         p = f'{CKPT_DIR}/{fn}'
         if os.path.exists(p):
-            return p, fn
-    for prefix in ('sft_v2', 'dpo_v2', 'con_v2'):
-        p = find_latest(prefix)
-        if p:
             return p, os.path.basename(p)
     return SEED_CKPT, os.path.basename(SEED_CKPT)
 
 RESUME_CKPT, RESUME_LABEL = resolve_resume()
 ckpt = torch.load(RESUME_CKPT, map_location=DEVICE, weights_only=False)
-# Handle architecture changes (e.g. inject_every, crn_mix_init) that change param sizes
+# Handle architecture changes (e.g. inject_every, crn_mix_init, fusion rank)
+# that change param sizes: drop every key whose shape mismatches the model.
 crn_state = ckpt['crn']
-for key in ['crn_mix', 'reflection_gate']:
-    if key in crn_state and crn_state[key].shape != getattr(student, key).shape:
-        print(f"  Re-initializing {key}: ckpt={crn_state[key].shape} vs model={getattr(student, key).shape}")
+dropped = []
+for key in list(crn_state.keys()):
+    if key not in student.state_dict() or student.state_dict()[key].shape != crn_state[key].shape:
+        dropped.append(key)
         del crn_state[key]
+for key in dropped:
+    print(f"  Dropped shape-mismatched ckpt key: {key}")
 student.load_state_dict(crn_state, strict=False)
+# Repair: if the seed's reflection channel collapsed to noise (v6 final has
+# direction std ~0.01 and confidence_scale ~0.09), re-init it under the new
+# logit-fusion signal so the pillar gets a fresh start. Disable with
+# REPAIR_REFLECTION=0 when the reflection collapse is known-harmless.
+if os.environ.get('REPAIR_REFLECTION', '1') == '1' and student.reflection.correction_directions.detach().std().item() < 0.1:
+    print("  Repairing collapsed reflection: re-init correction_directions (N(0,0.5)) + confidence_scale (3.0)")
+    nn.init.normal_(student.reflection.correction_directions, std=0.5)
+    student.reflection.confidence_scale.data.fill_(3.0)
 if 'memory_file' in ckpt and os.path.exists(ckpt['memory_file']):
     student.load_memory(ckpt['memory_file'])
 print(f"Resumed from {RESUME_CKPT} (label={RESUME_LABEL}, step {ckpt.get('step')})")
@@ -206,7 +300,15 @@ if not state.get('sft_complete', False):
             if step >= SFT_STEPS: break
             try:
                 ids = batch['input_ids'].to(DEVICE); labels = batch['labels'].to(DEVICE)
-                out = student(ids, labels, eos_weight=5.0)
+                if CONSISTENCY_EVERY > 0 and step % CONSISTENCY_EVERY == 0:
+                    out = student.forward_consistent(
+                        ids, labels,
+                        batch['var_ids'].to(DEVICE), batch['var_labels'].to(DEVICE),
+                        batch['pre_len'].item(), batch['var_pre_len'].item(),
+                        pos_weights=batch['weights'].to(DEVICE), var_pos_weights=batch['var_weights'].to(DEVICE),
+                        eos_weight=5.0, cons_weight=CONSISTENCY_WEIGHT)
+                else:
+                    out = student(ids, labels, eos_weight=5.0, pos_weights=batch['weights'].to(DEVICE))
                 loss = out['loss'] / GRAD_ACCUM
                 if not torch.isfinite(loss):
                     sched.step(); step += 1; continue
@@ -222,7 +324,11 @@ if not state.get('sft_complete', False):
                     if DEVICE == 'mps': torch.mps.empty_cache()  # cap allocator pool growth
                 if step % LOG_EVERY == 0:
                     avg = sum(losses[-LOG_EVERY:]) / LOG_EVERY
-                    print(f"  SFT {step}/{SFT_STEPS} loss={avg:.4f} ref_gate={torch.sigmoid(student.reflection_gate).mean().item():.3f}")
+                    dstd, conf, lg, up_std, up_grad = watch_corrections(student, step, avg)
+                    kl = out.get('kl')
+                    print(f"  SFT {step}/{SFT_STEPS} loss={avg:.4f} ref_gate={torch.sigmoid(student.reflection_gate).mean().item():.3f} "
+                          f"dir_std={dstd:.3f} conf={conf:.3f} fus_gate={lg:.3f} up_grad={up_grad if up_grad is None else f'{up_grad:.2e}'}"
+                          f"{f' kl={kl:.3f}' if kl is not None else ''}")
                     sys.stdout.flush()
                 if step % SAVE_EVERY == 0:
                     torch.save({'crn': get_crn_state_dict(student), 'step': step, 'loss': recent_avg(losses),

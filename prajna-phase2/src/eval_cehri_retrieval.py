@@ -9,16 +9,20 @@ For each exam question:
 """
 import os, sys, json, time
 os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+# The released checkpoint contains no logit-fusion weights; run the exact
+# released configuration by default (override with FUSION_OFF=0 for the
+# negative-results fusion experiments described in the paper).
+os.environ.setdefault("FUSION_OFF", "1")
 sys.path.insert(0, os.path.dirname(__file__))
 import torch
 from crn_components import PrajnaStudentMultiLayer
 
 THRESH = float(os.environ.get("RETR_THRESH", "0.9"))
-TABLE = os.environ.get("RETR_TABLE", "prajna/data/retrieval_table.npz")
-CKPT = os.environ.get("CEHRI_CKPT", "prajna/checkpoints/dpo_v2_final.pt")
-MEM = os.environ.get("CEHRI_MEM", "prajna/checkpoints/memory_v2_final.json")
+TABLE = os.environ.get("RETR_TABLE", "prajna/data/retrieval_table_v2.npz")
+CKPT = os.environ.get("CEHRI_CKPT", "prajna/checkpoints/dpo_v2_final_seed.pt")
+MEM = os.environ.get("CEHRI_MEM", "prajna/checkpoints/memory_v2_final_seed.json")
 EXAM = os.environ.get("CEHRI_EXAM", "prajna/data/cehri_exam.json")
-DEV = "mps"
+DEV = os.environ.get("DEV", "mps")
 
 t0 = time.time()
 student = PrajnaStudentMultiLayer(device=DEV, inject_every=4, max_length=96, crn_mix_init=2.0)
@@ -54,20 +58,31 @@ def embed_prompt(prompt):
 def gen_crn(prompt, max_new=30):
     input_text = prompt + ": "
     ids = tok(input_text, return_tensors="pt").input_ids.to(DEV)
-    g = ids.clone()
-    gen_tokens = []
-    for _ in range(max_new):
-        o = student._collect_hidden(g)
+    past = None
+    generated = []
+    first = True
+    while True:
+        o = student._collect_hidden(torch.tensor(generated[-1:], device=ids.device).reshape(1, 1) if generated else ids, past_key_values=past)
         lg, _ = student._apply_crn(o, training=False)
-        logits = lg[:, -1, :]
-        for t in gen_tokens:
-            logits[0, t] /= 1.15
-        nt = logits.argmax(-1).reshape(1, 1)
-        gen_tokens.append(nt.item())
-        g = torch.cat([g, nt], dim=1)
+        if first and os.environ.get('GEN_CLAMP', '0') == '1':
+            first = False
+            seq_logits = lg[:, :-1, :]
+            nt = seq_logits.argmax(-1)[0, -1].reshape(1, 1)
+            if nt.item() in (tok.eos_token_id, tok.pad_token_id) or nt.item() == ids[0, -1].item():
+                nt = lg[:, -1, :].argmax(-1).reshape(1, 1)
+        else:
+            logits = lg[:, -1, :]
+            for t in generated:
+                logits[0, t] /= 1.15
+            nt = logits.argmax(-1).reshape(1, 1)
+        generated.append(nt.item())
+        past = o["past"]
         if nt.item() == tok.eos_token_id:
             break
-    out = tok.decode(g[0], skip_special_tokens=True)
+        if len(generated) >= max_new:
+            break
+    full = torch.cat([ids, torch.tensor(generated, device=ids.device).reshape(1, -1)], dim=1)
+    out = tok.decode(full[0], skip_special_tokens=True)
     return out[len(input_text):].strip()
 
 
