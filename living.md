@@ -651,6 +651,18 @@ pow). **Math reasoning on a frozen 5B base via a 6.7M CRN adapter is real.**
 - **Gates never learn:** crn_mix (init σ=0.881) trains to σ≈0.858; reflection_gate (init σ=0.622) trains to σ=0.622 — untrained constants
 - Reworded exam is **near-duplicate**: 71.6% char overlap, cosine 0.881–0.990 (median 0.972)
 
+**4b. Training-provenance corrections (deep review, Aug 26, 2026)**
+- **Training is CPU, not MPS** — trainer docstring: "All on CPU (MPS unusable for the wrapped model)"; eval uses MPS. Paper corrected.
+- **All three training-objective equations rewritten to match code** (`train_prajna2b.py`):
+  - SFT = ½[CE(main) + CE(paraphrase-variant) + 0.1·KL(answer-start)] — surface-invariance objective (was: plain masked CE)
+  - DPO = −logσ(β(logp_correct − logp_rejected)) — **reference-free** (was: standard DPO with p_ref — false)
+  - Contrastive = −logσ(β(lp_correct − lp_wrong)) ranking loss (was: embedding-margin loss — false)
+- **Step budgets corrected**: paper's "16,000 SFT" was the logit-fusion experiment's count, conflated. Committed defaults: 2,000/500/200 (env-overridable); observed stage runs 3,000/3,000/1,000; released seed's internal counter = 3,000. Provenance caveat added to paper (trainer reuses one filename across stages).
+- **Throughput corrected**: ~0.75 s/step (DPO/CON), ~2 s/step (SFT) from checkpoint timestamps — was "0.3–0.5 s/step, ≈3 h total" (unsupported).
+- **fig2 caption**: removed unsupported "probe p<0.05" claim (no statistical test was run).
+- **Mechanism section retitled** "Absent supervision and an attenuating frozen readout" — the old "gradient ≈ 0 when distribution is flat" claim was technically wrong (CE gradient is p − e_y); now framed as hypothesis with no-supervision-at-L−1 as the primary cause.
+- arXiv submission zip rebuilt: `docs/paper/arxiv_submission.zip` (main.tex + figures/, sec:ood label fixed).
+
 **5. Honest assessment (Aug 19, 2026)**
 - **NOT a breakthrough.** 100% = pure retrieval lookup; generation 20–25% is modest; OOD degrades 3×
 - **Genuinely valuable:** the negative results (L-2/L-1 answer-position problem, 3 failed training fixes, GEN_CLAMP decode-time fix, vanishing-gradient-through-frozen-head mechanism)

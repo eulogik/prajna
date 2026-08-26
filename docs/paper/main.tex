@@ -30,7 +30,7 @@
 
 \begin{abstract}
 \noindent
-We present Prajna, a 6.72M-parameter \emph{Cognitive Resonance Network} (CRN) injected into the hidden states of a fully frozen Gemma~4 E2B language model (35 layers; 4.65B parameters in the text module of a 5.12B multimodal checkpoint). Only $\approx$0.15\% of the text module's parameters are trainable; the base network receives no gradients. Prajna is trained and evaluated entirely on a consumer laptop (Apple M4, 16\,GB, MPS), with no GPU rental and no external model APIs. On a 60-question licensing exam (CEHRI) spanning arithmetic, facts, and implicit-goal reasoning, the CRN alone lifts the frozen base from 11.7\% to 20.0\% correct; adding a train-derived episodic-memory retrieval table (17,810 entries) yields \textbf{60/60 (100\%)} on the exam and \textbf{110/120 (91.7\%)} on reworded variants whose phrasing was never seen in training. We also report \emph{negative results}: three training-side strategies --- two logit-fusion configurations and a weighted \emph{anchor} on the answer-start position --- failed to move answer knowledge one token position right, while a decode-time harvest (GEN\_CLAMP) reliably recovered that knowledge. In-distribution perplexity drops $\approx$18$\times$ (106.85$\to$6.02), while out-of-distribution text is degraded (2.04 vs.\ 0.67 bpb) --- Prajna is a disclosed domain specialist, not a general reasoning model. All code, weights, data, and evaluation scripts are released.
+We present Prajna, a 6.72M-parameter \emph{Cognitive Resonance Network} (CRN) injected into the hidden states of a fully frozen Gemma~4 E2B language model (35 layers; 4.65B parameters in the text module of a 5.12B multimodal checkpoint). Only $\approx$0.15\% of the text module's parameters are trainable; the base network receives no gradients. Prajna is trained and evaluated entirely on a consumer laptop (Apple M4, 16\,GB; CPU training, MPS evaluation), with no GPU rental and no external model APIs. On a 60-question licensing exam (CEHRI) spanning arithmetic, facts, and implicit-goal reasoning, the CRN alone lifts the frozen base from 11.7\% to 20.0\% correct; adding a train-derived episodic-memory retrieval table (17,810 entries) yields \textbf{60/60 (100\%)} on the exam and \textbf{110/120 (91.7\%)} on reworded variants whose phrasing was never seen in training. We also report \emph{negative results}: three training-side strategies --- two logit-fusion configurations and a weighted \emph{anchor} on the answer-start position --- failed to move answer knowledge one token position right, while a decode-time harvest (GEN\_CLAMP) reliably recovered that knowledge. In-distribution perplexity drops $\approx$18$\times$ (106.85$\to$6.02), while out-of-distribution text is degraded (2.04 vs.\ 0.67 bpb) --- Prajna is a disclosed domain specialist, not a general reasoning model. All code, weights, data, and evaluation scripts are released.
 \end{abstract}
 
 \section{Introduction}
@@ -38,7 +38,7 @@ We present Prajna, a 6.72M-parameter \emph{Cognitive Resonance Network} (CRN) in
 
 The dominant scaling paradigm trains ever-larger models with ever-larger budgets. An alternative line of work asks how much behavioral change can be extracted from a \emph{frozen} backbone using a small trainable subsystem: parameter-efficient fine-tuning (PEFT) \cite{houlsby2019adapters,lora,zhang2020sidetuning} and retrieval-augmented generation \cite{lewis2020rag}, among others.
 
-Prajna combines these lines. It is an $\sim$6.72M-parameter adapter ($\approx$\textbf{0.15\%} of the base) that: (i) injects \emph{gated additive correction signals} into the hidden states of a frozen Gemma 4 E2B model, computed from eight depths (resonance attention, skill composition, a reflective loop, and episodic memory); (ii) is trained with SFT$\to$DPO$\to$Contrastive stages on a Mac Mini M4 (16\,GB) at $\sim$0.3--0.5\,s/step, entirely on-device, with no API calls at any point; and (iii) combines its generation head with a train-derived \emph{exact-recall} retrieval table that yields 100\% on its target exam and 91.7\% on reworded variants whose phrasing was never in the training data.
+Prajna combines these lines. It is an $\sim$6.72M-parameter adapter ($\approx$\textbf{0.15\%} of the base) that: (i) injects \emph{gated additive correction signals} into the hidden states of a frozen Gemma 4 E2B model, computed from eight depths (resonance attention, skill composition, a reflective loop, and episodic memory); (ii) is trained with SFT$\to$DPO$\to$Contrastive stages on a Mac Mini M4 (16\,GB, CPU), entirely on-device, with no API calls at any point; and (iii) combines its generation head with a train-derived \emph{exact-recall} retrieval table that yields 100\% on its target exam and 91.7\% on reworded variants whose phrasing was never in the training data.
 
 We make four contributions. \textbf{(1) Architecture:} a small, backbone-agnostic correction network on frozen hidden states, with per-injection sigmoid gates and an episodic-memory pillar. \textbf{(2) Evaluation protocol:} three gates --- memory-augmented, generation-only, and reworded-unseen --- that separate \emph{recall} from \emph{generalization}. \textbf{(3) Failure analysis:} token-level probing shows the network holds answers one position early while the answer-start position is masked in SFT; three training strategies cannot overcome this, and a decode-time harvest can. \textbf{(4) Transparency:} weights, retrieval table, memory, data, and every evaluation script are public, and out-of-domain failures are reported alongside the headline numbers.
 
@@ -72,19 +72,19 @@ where $m_l,\gamma_l\in\mathbb{R}$ are learned per-depth gates (\texttt{crn\_mix}
 
 \subsection{Training objectives}
 
-The three stages use standard objectives applied to the CRN parameters only. \textbf{SFT} minimizes answer-only masked cross-entropy,
+The three stages use standard objectives applied to the CRN parameters only; the frozen base supplies training signal but receives no gradients. \textbf{SFT} is answer-only masked cross-entropy with a surface-invariance term: each batch contains the original row and a paraphrase-variant row of the same prompt, and the loss
 \begin{equation}
-\mathcal{L}_{\text{SFT}} = -\sum_{t\in\mathcal{A}} \log p_\theta(y_t \mid y_{<t}, x),
+\mathcal{L}_{\text{SFT}} = \tfrac{1}{2}\Big[\mathcal{L}_{\text{CE}}(y) + \mathcal{L}_{\text{CE}}(\tilde y) + \lambda\,\mathrm{KL}\big(p^{\text{ans}}_{\theta}(\cdot|x)\,\Vert\,p^{\text{ans}}_{\theta}(\cdot|\tilde x)\big)\Big]
 \end{equation}
-where $\mathcal{A}$ is the answer span (prompt tokens are masked). \textbf{DPO} optimizes the preference pair $(y_w, y_l)$ with the standard loss
+averages the masked CE on the original ($y$) and variant ($\tilde y$) rows with a small KL consistency term ($\lambda{=}0.1$) between the two answer-start next-token distributions --- a soft pressure to ignore surface form. \textbf{DPO} is reference-free: with $y_c$ the correct completion and $y_r$ the frozen base's wrong completion (rejected),
 \begin{equation}
-\mathcal{L}_{\text{DPO}} = -\log \sigma\big(\beta \log \tfrac{p_\theta(y_w\mid x)}{p_{\text{ref}}(y_w\mid x)} - \beta \log \tfrac{p_\theta(y_l\mid x)}{p_{\text{ref}}(y_l\mid x)}\big),
+\mathcal{L}_{\text{DPO}} = -\log \sigma\big(\beta [ \log p_\theta(y_c\mid x) - \log p_\theta(y_r\mid x)]\big),
 \end{equation}
-using the frozen base as the reference $p_{\text{ref}}$. \textbf{Contrastive} training pulls the pooled prompt embedding toward the correct-answer embedding,
+with $\beta{=}0.1$; there is no external reference model --- the frozen base acts as the data source for rejected completions rather than as a log-probability reference. \textbf{Contrastive} training uses the same ranking form on the correction target,
 \begin{equation}
-\mathcal{L}_{\text{CON}} = \tfrac{1}{2}\max(0,\, \lVert e_q - e_a\rVert_2 - m)^2,
+\mathcal{L}_{\text{CON}} = -\log \sigma\big(\beta [ \log p_\theta(y_c\mid x) - \log p_\theta(y_w\mid x)]\big),
 \end{equation}
-with margin $m$. Memories are written every step via a learned gate ($m_l$ in Eq.~\ref{eq:inject} is distinct from the memory write gate).
+where $y_w$ is the base's wrong output; this stage refines the reflective loop to prefer correction directions that raise the correct completion above the wrong one. Memories are written every step via a learned gate ($m_l$ in Eq.~\ref{eq:inject} is distinct from the memory write gate).
 
 \subsection{Correction components}
 
@@ -110,43 +110,23 @@ Independent of the slot memory, we construct a \emph{retrieval table} $\mathcal{
 \subsection{Training}
 \label{sec:train}
 
-\textbf{Data.} 16{,}680 prompt$\to$answer base pairs across three domains (arithmetic, facts, implicit-goal reasoning), each expanded to 5 rows (the original plus 4 paraphrase variants) --- 83{,}400 rows; the 17{,}810 unique prompt texts become the retrieval-table keys (Section~\ref{sec:retrievalgate}). The 60-question CEHRI exam is drawn from the training distribution (its prompts appear verbatim in the corpus; exact-recall similarity 1.000), so its 100\% reflects exact recall of seen prompts; the reworded exam (120 items) applies a second, template-based paraphrase transform of the same prompts and serves as the near-duplicate test (Section~\ref{sec:results}).
+\textbf{Data.} 16{,}680 prompt$\to$answer base pairs across three domains (arithmetic, facts, implicit-goal reasoning), each expanded to 5 rows (the original plus 4 paraphrase variants) --- 83{,}400 rows (Table~\ref{tab:data}); the 17{,}810 unique prompt texts become the retrieval-table keys (Section~\ref{sec:retrievalgate}). The 60-question CEHRI exam is drawn from the training distribution (its prompts appear verbatim in the corpus; exact-recall similarity 1.000), so its 100\% reflects exact recall of seen prompts; the reworded exam (120 items) applies a second, template-based paraphrase transform of the same prompts and serves as the near-duplicate test (Section~\ref{sec:results}).
 
-\textbf{Stages.} (i) \emph{SFT}: answer-only masked cross-entropy on the variant-paired corpus, 16{,}000 steps, LR $3\times10^{-4}$, weight decay 0. (ii) \emph{DPO}: 3{,}000 steps, LR $5\times10^{-6}$, $\beta{=}0.1$, preferring the correct completion over the frozen base's wrong one. (iii) \emph{Contrastive}: 1{,}000 steps pulling memory-answer embeddings toward correct answers. Checkpoints every 50 steps with resumable state.
+\textbf{Stages.} (i) \emph{SFT}: the surface-invariance objective above, LR $3\times10^{-4}$, weight decay 0, cosine annealing to $0.1\times$. (ii) \emph{DPO}: LR $5\times10^{-6}$, $\beta{=}0.1$, preferring the correct completion over the frozen base's wrong one. (iii) \emph{Contrastive}: LR $5\times10^{-6}$, ranking correct completions above the base's wrong ones to refine the reflective loop. Step budgets are environment-configurable (committed defaults: 2{,}000 SFT / 500 DPO / 200 contrastive; experimental stage runs used up to 3{,}000/3{,}000/1{,}000). The released seed checkpoint's internal step counter reads 3{,}000; because the trainer reuses a single output filename across stages, per-stage provenance within the released seed is imperfectly recorded by filenames alone --- we therefore release the exact checkpoint bytes together with the trainer (Table~\ref{tab:budget}). Checkpoints every 50 steps with resumable state.
 
-\textbf{Hardware.} Apple M4 (Mac Mini, 16\,GB RAM), MPS backend; $\sim$0.3--0.5\,s/step. The full three-stage run takes $\approx$3\,h on a single consumer machine.
-
-\begin{table}[ht]
-\centering
-\small
-\caption{Training corpus composition. Each of the 16{,}680 base pairs expands to 5 rows (the original plus 4 paraphrase variants): 83{,}400 rows; the 17{,}810 unique prompt texts form the retrieval table.}
-\begin{tabular}{@{}lrr@{}}
-\toprule
-Domain & Base pairs & Paraphrase rows \\
-\midrule
-Arithmetic (symbol/atomic-weight) & 5{,}560 & 27{,}800 \\
-Factual QA (chemistry/everyday)   & 5{,}560 & 27{,}800 \\
-Implicit-goal reasoning (car-wash) & 5{,}560 & 27{,}800 \\
-\midrule
-Total & 16{,}680 & 83{,}400 \\
-\bottomrule
-\end{tabular}
-\label{tab:data}
-\end{table}
+\textbf{Hardware.} Apple M4 (Mac Mini, 16\,GB RAM). Training runs on CPU (MPS is unusable for the wrapped model); evaluation runs on MPS. Measured throughput: $\sim$0.75\,s/step for DPO/contrastive and $\sim$2\,s/step for SFT; each observed stage run completes in under two hours on the single consumer machine (Table~\ref{tab:budget}).
 
 \begin{table}[ht]
 \centering
 \small
-\caption{Training budget per stage (single Apple M4, MPS).}
+\caption{Observed on-device stage runs (Apple M4, CPU; timings derived from checkpoint timestamps). Step budgets are env-configurable; these are the recorded experimental runs.}
 \begin{tabular}{@{}lrrc@{}}
 \toprule
-Stage & Steps & Approx.\ time & Non-trainable? \\
+Stage & Steps & Observed time & Base \\
 \midrule
-SFT  & 16{,}000 & $\sim$1.5\,h & base frozen \\
-DPO  & 3{,}000  & $\sim$0.3\,h & base frozen \\
-Contrastive & 1{,}000 & $\sim$0.2\,h & base frozen \\
-\midrule
-Total & 20{,}000 & $\approx$3\,h & --- \\
+SFT  & 3{,}000 & $\sim$1.75\,h & frozen \\
+DPO  & 3{,}000 & $\sim$37\,min & frozen \\
+Contrastive & 1{,}000 & $\sim$12\,min & frozen \\
 \bottomrule
 \end{tabular}
 \label{tab:budget}
@@ -160,7 +140,7 @@ Token-level probes (Section~\ref{sec:negative}) show the CRN concentrates answer
 \begin{figure}[ht]
 \centering
 \includegraphics[width=0.86\textwidth]{figures/fig2_genclamp.png}
-\caption{The answer token is already recoverable at position $L{-}2$ (top-1 = Au / correct attribute; probe $p<0.05$); at the masked answer-start position $L{-}1$ the base emits formatting/digit tokens (top-1 = digit / \texttt{<strong>}). \texttt{GEN\_CLAMP} emits the $L{-}2$ argmax, harvesting this knowledge.}
+\caption{The answer token is already recoverable at position $L{-}2$ (top-1 = the correct answer, consistent across probe prompts); at the masked answer-start position $L{-}1$ the base emits formatting/digit tokens (top-1 = digit / \texttt{<strong>}). \texttt{GEN\_CLAMP} emits the $L{-}2$ argmax, harvesting this knowledge.}
 \end{figure}
 
 \section{Results}
@@ -230,7 +210,7 @@ Car-wash / IGR, reworded (N=8) & 0/8 & --- & no reasoning \\
 \label{tab:ood}
 \end{table}
 
-The implicit-goal (``car-wash'') check deserves emphasis: an earlier evaluation counted prompt-echo matches as successes; rescoring honestly gives 3/8 on original phrasing (keyword luck) and \textbf{0/8} on reworded phrasing. The CRN memorizes surface patterns and does not perform latent-goal reasoning.
+Table~\ref{tab:ood} summarizes out-of-distribution behavior. The implicit-goal (``car-wash'') check deserves emphasis: an earlier evaluation counted prompt-echo matches as successes; rescoring honestly gives 3/8 on original phrasing (keyword luck) and \textbf{0/8} on reworded phrasing. The CRN memorizes surface patterns and does not perform latent-goal reasoning.
 
 \subsection{Reproducibility}
 
@@ -300,9 +280,9 @@ An SFT variant unmasked $L{-}1$ with gold token $= $ first answer token, weighti
 
 GEN\_CLAMP (Section~\ref{sec:genclamp}) needs no retraining. Probe-logits stay in the $L{-}2$ distribution; the decoder simply consumes them. Table~\ref{tab:cehri} shows the resulting gains (31.7\% original / 34.2\% reworded vs.\ 15.0\%/15.0\% unclamped). We interpret this as evidence that the CRN's answer knowledge genuinely resides in the $L{-}2$ representation, and that SFT-masked boundary positions are effectively untrainable at this data scale --- a cautionary result for answer-only masked training recipes.
 
-\subsection{Mechanism: vanishing gradient through the frozen head}
+\subsection{Mechanism: absent supervision and an attenuating frozen readout}
 
-The untrained gates and the boundary-position failure share a common cause. When the frozen base's logit distribution over the vocabulary is relatively flat (high entropy), the gradient of the answer-token cross-entropy loss with respect to the hidden-state correction is $\approx 0$ --- the loss landscape is flat in the correction subspace. This ``dry-signal'' regime explains: (i) why the boundary position $L{-}1$ never moved (three training strategies failed); (ii) why logit-fusion rank 4 produced near-zero gradients (dry-signal regime); (iii) why the per-depth gates did not learn to differentiate depths (Section~\ref{sec:negative}); and (iv) why GEN\_CLAMP --- which bypasses training entirely and reads the $L{-}2$ logits directly --- is the only reliable fix. The CRN's additive corrections at mid-depths (layers 7/15) do learn, because the base's representations at those depths carry stronger task-specific signal; but the final-layer boundary position does not, because the frozen head's gradient is too weak at that scale.
+The untrained gates and the boundary-position failure share a common cause, which we state as a hypothesis. First, the boundary position $L{-}1$ receives \emph{no direct supervision}: it is masked in SFT, so no gradient ever teaches the corrections to place answer mass there. Second, the correction must act through the frozen LM head, whose fixed readout attenuates small hidden-state perturbations when the base's predictive distribution is diffuse; empirically, correction gradients measured on the converged seed were near zero (the ``dry-signal'' regime that aborted the rank-4 run). Together these explain: (i) why the boundary position $L{-}1$ never moved (three training strategies failed); (ii) why logit-fusion rank 4 produced near-zero gradients; (iii) why the per-depth gates did not learn to differentiate depths; and (iv) why GEN\_CLAMP --- which bypasses training entirely and reads the $L{-}2$ logits directly --- is the only reliable fix. The CRN's additive corrections at mid-depths (layers 7/15) do learn, because the base's representations at those depths carry stronger task-specific signal; the final-layer boundary position does not. Direct gradient-norm measurements across depths and stages (Section~\ref{sec:negative}, Future Work) would confirm the hypothesis quantitatively.
 
 \section{Limitations}
 
@@ -310,7 +290,7 @@ The untrained gates and the boundary-position failure share a common cause. When
 
 \section{Future Work}
 
-Several directions follow directly from the findings above. \textbf{(1) Baseline comparison.} A plain LoRA at the same 6.7M budget would determine whether the CRN's multi-module architecture adds value over a simpler adapter. \textbf{(2) Gradient-signal analysis.} The vanishing-gradient hypothesis (Section~\ref{sec:negative}) could be tested directly by measuring gradient norms through the frozen head across depths and training stages. \textbf{(3) Paraphrase-robust training.} Including genuinely diverse (LLM-rewritten) paraphrases in the training set would test whether the CRN can learn surface invariance; the current template-based paraphrases do not provide this pressure. \textbf{(4) Format variation.} Is the $L{-}2/L{-}1$ boundary problem an artifact of the ``prompt: answer'' format? Training with answer-before-prompt or no-colon formats would test this. \textbf{(5) Scale.} The 16,680-pair corpus and 60-question exam are small; scaling to larger corpora and standard benchmarks (e.g.\ full MMLU, ARC) would test whether the memorization-vs-generalization tradeoff improves. \textbf{(6) Memory ablation.} The slot memory's contribution was not ablated in isolation; removing it would quantify its marginal value over the retrieval table alone.
+Several directions follow directly from the findings above. \textbf{(1) Baseline comparison.} A plain LoRA at the same 6.7M budget would determine whether the CRN's multi-module architecture adds value over a simpler adapter. \textbf{(2) Gradient-signal analysis.} The absent-supervision/attenuating-readout hypothesis (Section~\ref{sec:negative}) could be tested directly by measuring gradient norms through the frozen head across depths and training stages. \textbf{(3) Paraphrase-robust training.} Including genuinely diverse (LLM-rewritten) paraphrases in the training set would test whether the CRN can learn surface invariance; the current template-based paraphrases do not provide this pressure. \textbf{(4) Format variation.} Is the $L{-}2/L{-}1$ boundary problem an artifact of the ``prompt: answer'' format? Training with answer-before-prompt or no-colon formats would test this. \textbf{(5) Scale.} The 16,680-pair corpus and 60-question exam are small; scaling to larger corpora and standard benchmarks (e.g.\ full MMLU, ARC) would test whether the memorization-vs-generalization tradeoff improves. \textbf{(6) Memory ablation.} The slot memory's contribution was not ablated in isolation; removing it would quantify its marginal value over the retrieval table alone.
 
 \section{Conclusion}
 
@@ -319,7 +299,7 @@ Prajna demonstrates that a 6.72M-parameter correction network over a frozen Gemm
 \begin{figure}[ht]
 \centering
 \includegraphics[width=0.9\textwidth]{figures/results.png}
-\caption{Benchmark snapshot. Blue and green cards are the released seed checkpoint (memory-augmented: 60/60 and 110/120); orange and red cards are the experimental anchor-trained checkpoint whose generation had collapsed, showing GEN\_CLAMP recovery (19/60 and 41/120). All numbers are produced by committed scripts with the released checkpoint.}
+\caption{Benchmark snapshot. Blue and green cards are the released seed checkpoint (memory-augmented: 60/60 and 110/120); gray cards are generation-only results for the released seed (12/60, 30/120) with the frozen base for comparison (7/60); orange and red cards are the experimental anchor-trained checkpoint whose generation had collapsed, showing GEN\_CLAMP recovery (19/60 and 41/120). All numbers are produced by committed scripts with the released checkpoint.}
 \end{figure}
 
 \small
