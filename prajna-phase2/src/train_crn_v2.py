@@ -28,6 +28,7 @@ SFT_LR = float(os.environ.get('CRN_V2_SFT_LR', '3e-4'))
 DPO_LR = float(os.environ.get('CRN_V2_DPO_LR', '5e-6'))
 GRAD_ACCUM = int(os.environ.get('CRN_V2_GRAD_ACCUM', '8'))
 KL_LAMBDA = float(os.environ.get('CRN_V2_KL_LAMBDA', '0.1'))
+CORRECTION_RANK = int(os.environ.get('CRN_V2_RANK', '128'))
 CKPT = os.environ.get('CRN_V2_CKPT_DIR', 'prajna/checkpoints')
 MAXLEN = int(os.environ.get('CRN_V2_MAXLEN', '96'))
 STATE_PATH = os.path.join(CKPT, 'state_crn_v2.json')
@@ -56,15 +57,26 @@ class ECSFTDataset(Dataset):
         self.data = []
         for s in rows:
             for variant in [s['chosen'], s.get('variant', s['chosen'])]:
-                full = s['prompt'] + ': ' + variant
-                ids = tok(full, truncation=True, max_length=ml, padding='max_length', return_tensors='pt')
-                labels = ids['input_ids'].clone()
+                full = s['prompt'] + ': ' + variant + tok.eos_token
+                enc = tok(full, truncation=True, max_length=ml, padding='max_length', return_tensors='pt')
+                ids = enc['input_ids'].squeeze()
+                labels = ids.clone()
+                labels[enc['attention_mask'].squeeze() == 0] = -100
                 prompt_len = len(tok(s['prompt'] + ': ', return_tensors='pt')['input_ids'][0])
-                labels[0, :prompt_len] = -100
+                labels[:prompt_len] = -100
+                # Anchor weighting: 4x at answer start, 0.5x at neighbors, 0.25x padding
+                weights = torch.ones(ml, dtype=torch.float32) * 0.25
+                weights[enc['attention_mask'].squeeze() == 1] = 1.0
+                if prompt_len < ids.shape[0]:
+                    labels[prompt_len - 1] = ids[prompt_len]
+                    weights[prompt_len - 1] = 4.0
+                    if prompt_len >= 3:
+                        weights[prompt_len - 2] = 0.5
+                        weights[prompt_len - 3] = 0.5
                 self.data.append({
-                    'input_ids': ids['input_ids'][0],
-                    'labels': labels[0],
-                    'pos_weights': torch.ones(ml),
+                    'input_ids': ids,
+                    'labels': labels,
+                    'pos_weights': weights,
                 })
 
     def __len__(self): return len(self.data)
@@ -113,12 +125,12 @@ def main():
     state = load_state()
     dpo_resumed = state.get('dpo_step', 0) > 0
 
-    model = CRNv2(device=DEVICE, lambda_kl=KL_LAMBDA)
+    model = CRNv2(device=DEVICE, lambda_kl=KL_LAMBDA, correction_rank=CORRECTION_RANK)
     tok = model.tok
     params = model.get_params()
 
     print(f"Device={DEVICE} MAXLEN={MAXLEN} SFT={SFT_STEPS} DPO={DPO_STEPS} "
-          f"accum={GRAD_ACCUM} kl={KL_LAMBDA} load={time.time()-t0:.0f}s", flush=True)
+          f"accum={GRAD_ACCUM} kl={KL_LAMBDA} rank={CORRECTION_RANK} load={time.time()-t0:.0f}s", flush=True)
 
     # ── STAGE A: SFT ────────────────────────────────────────────────────────
     if not state.get('sft_complete', False):
@@ -141,7 +153,7 @@ def main():
                     ids = batch['input_ids'].to(DEVICE)
                     labels = batch['labels'].to(DEVICE)
                     w = batch['pos_weights'].to(DEVICE)
-                    out = model(input_ids=ids, labels=labels, pos_weights=w)
+                    out = model(input_ids=ids, labels=labels, eos_weight=5.0, pos_weights=w)
                     loss = out['loss'] / GRAD_ACCUM
                     if torch.isfinite(loss):
                         loss.backward()
@@ -169,7 +181,6 @@ def main():
         state['sft_complete'] = True
         save_state(state)
         print("STAGE A done -> crn_v2_sft.pt", flush=True)
-        sys.exit(0)
 
     # ── STAGE B: DPO ────────────────────────────────────────────────────────
     if not state.get('dpo_complete', False):
@@ -191,8 +202,8 @@ def main():
                 try:
                     c_ids = batch['chosen_ids'].to(DEVICE)
                     r_ids = batch['rejected_ids'].to(DEVICE)
-                    lc = model(input_ids=c_ids).logits
-                    lr_ = model(input_ids=r_ids).logits
+                    lc = model(input_ids=c_ids)['logits']
+                    lr_ = model(input_ids=r_ids)['logits']
                     lp_c = seq_logps(lc, c_ids)
                     lp_r = seq_logps(lr_, r_ids)
                     loss = -F.logsigmoid(DPO_BETA * (lp_c - lp_r)).mean() / GRAD_ACCUM
@@ -221,7 +232,6 @@ def main():
         state['dpo_complete'] = True
         save_state(state)
         print("STAGE B done -> crn_v2_dpo.pt", flush=True)
-        sys.exit(0)
 
     print("All stages complete.", flush=True)
 

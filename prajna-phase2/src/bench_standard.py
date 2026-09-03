@@ -54,6 +54,18 @@ def load_hf(name):
         return tok.decode(out[0][ids.shape[1]:], skip_special_tokens=True).strip()
     return gen
 
+def load_lora(base_name, adapter_path):
+    from peft import PeftModel
+    m = AutoModelForCausalLM.from_pretrained(base_name, dtype=torch.float16, low_cpu_mem_usage=False)
+    m = PeftModel.from_pretrained(m, adapter_path)
+    tok = AutoTokenizer.from_pretrained(base_name); m.eval()
+    @torch.no_grad()
+    def gen(prompt, max_new=12):
+        ids = tok(prompt, return_tensors='pt').input_ids
+        out = m.generate(ids, max_new_tokens=max_new, do_sample=False, pad_token_id=tok.eos_token_id)
+        return tok.decode(out[0][ids.shape[1]:], skip_special_tokens=True).strip()
+    return gen
+
 def first_letter(t):
     m = re.search(r'\b([A-D])\b', t)
     return m.group(1) if m else (t.strip()[:1].upper() if t.strip() else '')
@@ -125,7 +137,8 @@ def run():
     except Exception as e:
         gsm = []; print("gsm8k unavailable:", e)
     for label, loader, kind in [("Prajna 2B+CRN", load_prajna, 'prajna'),
-                                ("Gemma-4-E2B (base)", lambda: load_hf('google/gemma-4-E2B'), 'hf')]:
+                                ("Gemma-4-E2B (base)", lambda: load_hf('google/gemma-4-E2B'), 'hf'),
+                                ("LoRA baseline (r=19)", lambda: load_lora('google/gemma-4-E2B', './prajna/checkpoints/lora_baseline_dpo'), 'lora')]:
         try:
             gen = loader()
             o, t = run_mc(gen, mmlu, mmlu_fmt, first_letter, mmlu_gold); res.setdefault(label, {})['mmlu'] = f"{o}/{t}"

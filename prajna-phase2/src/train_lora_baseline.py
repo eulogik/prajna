@@ -28,6 +28,7 @@ DATA = os.environ.get('EC_DATA', f'{ROOT}/prajna/data/error_correction_pairs_v2.
 CKPT = os.environ.get('LORA_CKPT_DIR', f'{ROOT}/prajna/checkpoints')
 STATE = os.environ.get('LORA_STATE', f'{CKPT}/state_lora_baseline.json')
 DEVICE = os.environ.get('LORA_DEVICE', 'mps')
+DPO_DEVICE = os.environ.get('LORA_DPO_DEVICE', DEVICE)  # CPU avoids MPS double-forward deadlock
 MAXLEN = int(os.environ.get('LORA_MAXLEN', '96'))
 SFT_STEPS = int(os.environ.get('LORA_SFT_STEPS', '3000'))
 DPO_STEPS = int(os.environ.get('LORA_DPO_STEPS', '3000'))
@@ -143,17 +144,23 @@ def seq_logps(logits, ids):
 def main():
     t0 = time.time()
     state = load_state()
+    dpo_resumed = state.get('dpo_step', 0) > 0
     tok = AutoTokenizer.from_pretrained('google/gemma-4-E2B')
-    model = AutoModelForCausalLM.from_pretrained('google/gemma-4-E2B', dtype=torch.float16, low_cpu_mem_usage=False)
     depths_re = '|'.join(str(d) for d in DEPTHS)
     targets = (rf'model\.language_model\.layers\.({depths_re})\.'
                rf'(self_attn\.(q_proj|k_proj|v_proj|o_proj)|mlp\.(gate_proj|up_proj|down_proj))$')
     cfg = LoraConfig(r=RANK, lora_alpha=2 * RANK, lora_dropout=0.05,
                      target_modules=targets, task_type='CAUSAL_LM')
-    model = get_peft_model(model, cfg)
-    n = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"trainable params: {n:,} (LoRA r={RANK}, depths={DEPTHS})", flush=True)
-    model.to(DEVICE)
+    # DPO invocations get a FRESH process (no in-process SFT): building the probe
+    # model here AND reloading in STAGE B would momentarily hold two 9GB models
+    # in 16GB RAM -> swap thrash + MPS deadlock. So skip the probe when resuming.
+    LORA_PARAMS = 6_624_768  # measured via get_peft_model for r=19, 8 depths
+    print(f"trainable params: {LORA_PARAMS:,} (LoRA r={RANK}, depths={DEPTHS})", flush=True)
+    model = None
+    if not dpo_resumed:
+        model = AutoModelForCausalLM.from_pretrained('google/gemma-4-E2B', dtype=torch.float16, low_cpu_mem_usage=False)
+        model = get_peft_model(model, cfg)
+        model.to(DEVICE)
     print(f"Device={DEVICE} MAXLEN={MAXLEN} SFT={SFT_STEPS} DPO={DPO_STEPS} accum={GRAD_ACCUM} "
           f"load={time.time()-t0:.0f}s", flush=True)
 
@@ -228,7 +235,7 @@ def main():
             time.sleep(3)
         base = AutoModelForCausalLM.from_pretrained('google/gemma-4-E2B', dtype=torch.float16, low_cpu_mem_usage=False)
         model = PeftModel.from_pretrained(base, f'{CKPT}/lora_baseline_sft', is_trainable=True)
-        model.to(DEVICE)
+        model.to(DPO_DEVICE)
         params = [p for p in model.parameters() if p.requires_grad]
         opt = torch.optim.AdamW(params, lr=DPO_LR, weight_decay=0.0)
         ds = ECDataset(DATA, tok, MAXLEN)
@@ -241,32 +248,21 @@ def main():
                 if step >= DPO_STEPS:
                     break
                 try:
-                    if step < 3: print(f"    [dbg {step}] batch->device", flush=True)
-                    c_ids = batch['chosen_ids'].to(DEVICE)
-                    r_ids = batch['rejected_ids'].to(DEVICE)
-                    if step < 3: print(f"    [dbg {step}] fwd c", flush=True)
+                    c_ids = batch['chosen_ids'].to(DPO_DEVICE)
+                    r_ids = batch['rejected_ids'].to(DPO_DEVICE)
                     lc = model(input_ids=c_ids).logits
-                    if step < 3: print(f"    [dbg {step}] fwd r", flush=True)
                     lr_ = model(input_ids=r_ids).logits
-                    if step < 3: print(f"    [dbg {step}] logps", flush=True)
                     lp_c = seq_logps(lc, c_ids)
                     lp_r = seq_logps(lr_, r_ids)
-                    if step < 3: print(f"    [dbg {step}] backward", flush=True)
                     loss = -F.logsigmoid(DPO_BETA * (lp_c - lp_r)).mean() / GRAD_ACCUM
-                    if step < 3: print(f"    [dbg {step}] loss ok, backward", flush=True)
                     if torch.isfinite(loss):
                         loss.backward()
-                    if step < 3: print(f"    [dbg {step}] backward done", flush=True)
                     if (step + 1) % GRAD_ACCUM == 0:
                         gn = torch.nn.utils.clip_grad_norm_(params, MAX_GRAD_NORM)
                         if torch.isfinite(gn):
                             opt.step()
                         opt.zero_grad(set_to_none=True)
                     losses.append(loss.item() * GRAD_ACCUM)
-                    del lc, lr_, loss
-                    gc.collect()
-                    if DEVICE == 'mps':
-                        torch.mps.empty_cache()
                     step += 1
                     state['dpo_step'] = step
                     if step % 20 == 0:

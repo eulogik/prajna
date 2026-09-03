@@ -1,14 +1,17 @@
 {
   "Prajna 2B+CRN": {
-    "mmlu": "26/40",
-    "boolq": "26/40",
-    "hellaswag": "6/40",
-    "carwash": "1/8"
+    "error": "RuntimeError('Error(s) in loading state_dict for PrajnaStudentMultiLayer:\\n\\tsize mismatch for crn_mix: copying a param with shape torch.Size([4]) from checkpoint, the shape in current model is torch."
   },
   "Gemma-4-E2B (base)": {
-    "mmlu": "23/40",
-    "boolq": "30/40",
-    "hellaswag": "8/40",
+    "mmlu": "125/200",
+    "boolq": "143/200",
+    "hellaswag": "40/200",
     "carwash": "3/8"
+  },
+  "LoRA baseline (r=19)": {
+    "mmlu": "64/200",
+    "boolq": "110/200",
+    "hellaswag": "65/200",
+    "carwash": "0/8"
   }
 }
