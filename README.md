@@ -25,6 +25,7 @@
 ## Table of Contents
 
 - [What is Prajna? (FAQ-friendly summary)](#-what-is-prajna)
+- [CRN v2: retrieval-free correction study (paper + release)](#-crn-v2-retrieval-free-correction-study)
 - [Headline results](#-headline-results)
 - [Why it matters](#-why-it-matters)
 - [How it works](#-how-it-works)
@@ -72,6 +73,32 @@ no GPU.**
 frozen backbone — an ablative, in-distribution measurement.
 
 ![Benchmark snapshot](assets/prajna-benchmarks-v2.png)
+
+---
+
+## 🔬 CRN v2: retrieval-free correction study
+
+> **A second research track in this repo — no retrieval table, generation only.**
+> Paper: `docs/paper/main.tex` · Code + weights: `release/`
+
+V1 above passes the exam via **episodic-memory retrieval** (exact recall, 100%).
+CRN v2 asks the harder question: *without any retrieval, can a small correction
+module fix a frozen model's generation errors without degrading its capabilities?*
+
+| | CEHRI Original | CEHRI Reworded | MMLU | BoolQ | Car-wash |
+|---|---|---|---|---|---|
+| **Base (Gemma-4-E2B)** | 11.7% | — | 62.5% | 72% | 75% |
+| **CRN v2 (34M, rank-128)** | **53.3%** | **43.3%** | 62.5% | 72% | 75% |
+| LoRA baseline (6.6M) | 83.3% | 77.5% | 32% | 55% | 0% |
+
+Findings: CRN v2 corrects 53.3% of errors with **zero capability loss**; LoRA
+corrects more (83.3%) but destroys 30–75% of base capabilities — the
+correction–capability tradeoff. An injection-depth sweep (hidden-state correction
+at layers 4/7, 1.6M params) confirms ~53% as the **ceiling** for frozen-base
+methods: deeper injection helps (30% → 50%) but never beats logit correction,
+and DPO at depth destroys capabilities (MMLU 13%). All exam prompts appear
+verbatim in training data — reported honestly in the paper, which is scoped for
+ICLR 2027.
 
 ---
 
