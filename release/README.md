@@ -1,5 +1,14 @@
 # CRN v2: Safe Error Correction for Language Models
 
+<p>
+  <a href="https://huggingface.co/eulogik/Prajna-CRNv2"><img alt="HuggingFace" src="https://img.shields.io/badge/HuggingFace-eulogik%2FPrajna--CRNv2-FF9D00?style=for-the-badge&logo=huggingface&logoColor=white"></a>
+  <img alt="HF downloads" src="https://img.shields.io/badge/dynamic/json?url=https://huggingface.co/api/models/eulogik/Prajna-CRNv2&query=downloads&color=blue&label=HF%20downloads&style=for-the-badge">
+  <a href="https://github.com/eulogik/prajna"><img alt="GitHub stars" src="https://img.shields.io/github/stars/eulogik/prajna?style=for-the-badge"></a>
+  <img alt="Correction" src="https://img.shields.io/badge/CEHRI%20correction-53.3%25-6a4cff?style=for-the-badge">
+  <img alt="Degradation" src="https://img.shields.io/badge/capability%20loss-0%25-00d26a?style=for-the-badge">
+  <img alt="License" src="https://img.shields.io/badge/license-Gemma%20Terms-blueviolet?style=for-the-badge">
+</p>
+
 A lightweight correction module that fixes errors in language model outputs without degrading base capabilities.
 
 ## What it does
@@ -20,6 +29,9 @@ corrected_logits = base_logits + gate * up(gelu(down(hidden)))
 
 CRN v2 corrects 53% of errors with **zero capability loss**. LoRA corrects 83% but destroys 30-75% of base capabilities.
 
+![Correction results](../assets/crnv2-correction.png)
+![Capability preservation](../assets/crnv2-capability.png)
+
 ## Injection-depth sweep (experimental)
 
 A hidden-state injection variant (`crn_deep.py`, 1.6M params, rank=512) confirms ~53% as the ceiling for frozen-base methods:
@@ -32,6 +44,8 @@ A hidden-state injection variant (`crn_deep.py`, 1.6M params, rank=512) confirms
 | **Logit CRN v2** | SFT + DPO | **53.3%** | 43.3% | intact |
 
 Deeper injection helps but never beats logit correction. DPO at depth destroys capabilities. Deep variant is released as **code only** (no trained checkpoints).
+
+![Injection-depth sweep](../assets/crnv2-depth.png)
 
 ## Quick start
 

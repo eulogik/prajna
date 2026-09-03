@@ -78,8 +78,16 @@ frozen backbone — an ablative, in-distribution measurement.
 
 ## 🔬 CRN v2: retrieval-free correction study
 
+<p>
+  <a href="https://huggingface.co/eulogik/Prajna-CRNv2"><img alt="HuggingFace" src="https://img.shields.io/badge/HuggingFace-eulogik%2FPrajna--CRNv2-FF9D00?style=for-the-badge&logo=huggingface&logoColor=white"></a>
+  <img alt="HF downloads" src="https://img.shields.io/badge/dynamic/json?url=https://huggingface.co/api/models/eulogik/Prajna-CRNv2&query=downloads&color=blue&label=HF%20downloads&style=for-the-badge">
+  <a href="https://github.com/eulogik/prajna"><img alt="GitHub stars" src="https://img.shields.io/github/stars/eulogik/prajna?style=for-the-badge"></a>
+  <img alt="Correction" src="https://img.shields.io/badge/CEHRI%20correction-53.3%25-6a4cff?style=for-the-badge">
+  <img alt="Degradation" src="https://img.shields.io/badge/capability%20loss-0%25-00d26a?style=for-the-badge">
+</p>
+
 > **A second research track in this repo — no retrieval table, generation only.**
-> Paper: `docs/paper/main.tex` · Code + weights: `release/`
+> Paper: `docs/paper/main.tex` · Code + weights: `release/` · HF: `eulogik/Prajna-CRNv2`
 
 V1 above passes the exam via **episodic-memory retrieval** (exact recall, 100%).
 CRN v2 asks the harder question: *without any retrieval, can a small correction
@@ -99,6 +107,10 @@ methods: deeper injection helps (30% → 50%) but never beats logit correction,
 and DPO at depth destroys capabilities (MMLU 13%). All exam prompts appear
 verbatim in training data — reported honestly in the paper, which is scoped for
 ICLR 2027.
+
+![CRN v2 correction results](assets/crnv2-correction.png)
+![CRN v2 capability preservation](assets/crnv2-capability.png)
+![CRN v2 injection-depth sweep](assets/crnv2-depth.png)
 
 ---
 
