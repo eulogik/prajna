@@ -36,7 +36,7 @@ The base model is never updated; only the correction module learns, via supervis
 On a 60-question domain exam (CEHRI: Certified Human-Robot Intelligence, covering facts, arithmetic, and implicit-goal reasoning), CRN~v2 corrects \textbf{53.3\%} of base-model errors (reworded variant: 43.3\%) while showing \textbf{no degradation on tested capability benchmarks} (MMLU/BoolQ $N{=}200$; car-wash $N{=}8$).
 A LoRA baseline at the matched \emph{CRN~v1} budget (6.6M params, rank~19) achieves 83.3\% correction but suffers 30--75\% capability loss on the same benchmarks---the correction--capability tradeoff.
 An ablation shows that the KL preservation term ($\lambda{=}0.1$) is critical: lowering it to 0.01 degrades correction to 35.0\%.
-A hidden-state injection variant at earlier layers (1.6M params, SFT-only) reaches 50.0\%/55.8\% but never exceeds logit correction; shallower injection (layer~4) drops to 30.0\%/28.3\%; multi-depth logit correction (68M params) reaches only 40\%; and longer training (5{,}000 SFT $+$ 2{,}000 DPO) stays at 53.3\%---confirming $\sim$53\% as the ceiling for frozen-base approaches.
+A hidden-state injection variant at earlier layers (1.6M params, SFT-only) reaches 50.0\%/55.8\% but never exceeds logit correction; shallower injection (layer~4) drops to 30.0\%/28.3\%; multi-depth logit correction ($\sim$35M) reaches only 40\%; and longer training (5{,}000 SFT $+$ 2{,}000 DPO) stays at 53.3\%---confirming $\sim$53\% as the ceiling for frozen-base approaches.
 This is a study of a design principle (frozen base + logit correction + KL anchoring), not a claim of architectural novelty.
 All code, main-result weights, and evaluation scripts are released (deep variant as code only---no trained deep checkpoints).
 \end{abstract}
@@ -70,7 +70,7 @@ The base model receives no gradients.
 The correction module learns to adjust the base model's logits where needed while staying close to its behavior everywhere else.
 \item \textbf{Empirical finding:} CRN~v2 corrects 53.3\% of errors with no measurable degradation on MMLU/BoolQ ($N{=}200$) and car-wash ($N{=}8$); a LoRA baseline corrects 83.3\% but degrades 30--75\% on the same benchmarks.
 \item \textbf{Ablation:} Lowering the KL preservation weight from $\lambda{=}0.1$ to $0.01$ reduces correction from 53.3\% to 35.0\%, showing the anchoring term is load-bearing.
-\item \textbf{Injection-depth sweep:} A hidden-state injection variant (1.6M params, rank~512) at layer~7 reaches 50.0\%/55.8\% (SFT-only) and at layer~4 drops to 30.0\%/28.3\%---deeper injection helps but never beats logit correction; multi-depth logit correction (68M params) reaches only 40\%; longer training (5{,}000 SFT $+$ 2{,}000 DPO) stays at 53.3\%; DPO at depth~7 destroys capabilities.
+\item \textbf{Injection-depth sweep:} A hidden-state injection variant (1.6M params, rank~512) at layer~7 reaches 50.0\%/55.8\% (SFT-only) and at layer~4 drops to 30.0\%/28.3\%---deeper injection helps but never beats logit correction; multi-depth logit correction ($\sim$35M) reaches only 40\%; longer training (5{,}000 SFT $+$ 2{,}000 DPO) stays at 53.3\%; DPO at depth~7 destroys capabilities.
 \item \textbf{Transparency:} All code, main-result weights, evaluation scripts, and exact run logs are released (deep variant as code only).
 \end{enumerate}
 
@@ -219,8 +219,10 @@ LoRA baseline (r${=}19$, 6.6M params) & 50/60 = 83.3\% & 93/120 = 77.5\% \\
 
 CRN~v2 corrects 53.3\% of base-model errors on the original exam (43.3\% reworded).
 The LoRA baseline corrects 83.3\% (77.5\% reworded)---strictly higher.
+The frozen base alone answers 7/60 correctly (substring match on gold answers in the generated text), so CRN~v2 adds 25 correct answers (32--7) on the original exam and LoRA adds 43.
 With $N{=}60$, the 95\% Wilson interval for 53.3\% is [40.9\%, 65.4\%]; for 83.3\% it is [72.0\%, 90.7\%].
-The gap is real, but correction alone is not the full picture.
+With $N{=}120$, the interval for 43.3\% is [34.6\%, 52.4\%]; for 77.5\% it is [69.0\%, 84.4\%].
+The gap is real on both exams, but correction alone is not the full picture.
 
 \subsection{Capability preservation}
 \label{sec:capability}
@@ -251,7 +253,7 @@ The mechanism is straightforward: the base model is frozen, so there is nothing 
 The correction module learns to adjust logits where the base is wrong, while KL preservation keeps it close to base behavior everywhere else.
 
 We note two caveats.
-First, per-task $N$ is small (200 for MMLU/BoolQ, only 8 for car-wash); a 0/200 vs.\ 125/200 gap is large enough to be unambiguous, but finer differences would require larger $N$.
+First, per-task $N$ is small (200 for MMLU/BoolQ, only 8 for car-wash); the 125/200 vs.\ 64/200 gap on MMLU is large enough to be unambiguous, but finer differences would require larger $N$.
 Second, ``no degradation'' means ``no degradation on the three tested benchmarks''---we do not claim universal preservation.
 
 \subsection{KL preservation ablation}
@@ -283,7 +285,7 @@ The qualitative pattern (weaker anchoring $\to$ worse correction) is consistent 
 \begin{table}[ht]
 \centering
 \small
-\caption{Injection-depth sweep (all $\lambda{=}0.1$, SFT~2{,}000 steps unless noted). Logit CRN~v2 (rank~128, single depth) shown for reference. Multi-depth logit correction concatenates hidden states from 2 depths before producing a logit delta (rank~128 per depth, 68M total). $^\dagger$Numbers are session-observed---eval logs were removed during disk maintenance and deep/multi-depth checkpoints were not retained, so these rows are exploratory, not independently re-verifiable from the release.}
+\caption{Injection-depth sweep (all $\lambda{=}0.1$, SFT~2{,}000 steps unless noted). Logit CRN~v2 (rank~128, single depth) shown for reference. Multi-depth logit correction concatenates hidden states from multiple layers (including the final) before producing a single logit delta (rank~128, $\sim$35M total). $^\dagger$Numbers are session-observed---eval logs were removed during disk maintenance and deep/multi-depth checkpoints were not retained, so these rows are exploratory, not independently re-verifiable from the release.}
 \begin{tabular}{@{}lllccc@{}}
 \toprule
 Variant & Params & Training & Original (60) & Reworded (120) & Capability note \\
@@ -291,10 +293,10 @@ Variant & Params & Training & Original (60) & Reworded (120) & Capability note \
 Deep $k{=}4$ (1.6M)$^\dagger$ & 1.6M & SFT-only & 18/60 = 30.0\% & 34/120 = 28.3\% & not probed \\
 Deep $k{=}7$ (1.6M)$^\dagger$ & 1.6M & SFT-only & 30/60 = 50.0\% & 67/120 = 55.8\% & MMLU probe 4/6 (intact) \\
 Deep $k{=}7$ (1.6M)$^\dagger$ & 1.6M & SFT $+$ DPO~500 & 30/60 = 50.0\% & 66/120 = 55.0\% & MMLU 4/30 = 13\%; BoolQ constant ``B'' \\
-Multi-depth logit (2$\times$128)$^\dagger$ & 68M & SFT $+$ DPO~1000 & 24/60 = 40.0\% & --- & not probed \\
+Multi-depth logit (rank~128)$^\dagger$ & $\sim$35M & SFT~3k $+$ DPO~1k & 24/60 = 40.0\% & --- & not probed \\
 Long-train logit (rank~128)$^\dagger$ & 34M & SFT~5k $+$ DPO~2k & 32/60 = 53.3\% & --- & not re-probed \\
 \midrule
-\textbf{Logit CRN~v2} (1$\times$128) & \textbf{34M} & SFT $+$ DPO~500 & \textbf{32/60 = 53.3\%} & \textbf{52/120 = 43.3\%} & no degradation (Tab.~\ref{tab:capability}) \\
+\textbf{Logit CRN~v2} (rank~128) & \textbf{34M} & SFT $+$ DPO~500 & \textbf{32/60 = 53.3\%} & \textbf{52/120 = 43.3\%} & no degradation (Tab.~\ref{tab:capability}) \\
 \bottomrule
 \end{tabular}
 \label{tab:depth}
@@ -327,7 +329,7 @@ The mechanism explains why: LoRA modifies weights inside every layer so correcti
 Closing the 53\%--83\% gap requires weight modification---which costs capabilities---or a fundamentally different correction architecture.
 
 \textbf{The design principle generalizes.}
-Frozen-base logit adjustment with KL anchoring is not specific to Gemma~4~E2B.
+Frozen-base adjustment with KL anchoring is not specific to Gemma~4~E2B.
 Any frozen LM can be augmented with a correction module trained on its error patterns.
 The released code is model-agnostic up to the tokenizer and hidden-dimension constants.
 
