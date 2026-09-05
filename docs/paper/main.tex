@@ -229,15 +229,16 @@ The gap is real on both exams, but correction alone is not the full picture.
 
 \begin{table}[ht]
 \centering
-\small
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \caption{Capability benchmarks ($N{=}200$ per task, except car-wash $N{=}8$). $\Delta$ is the change from the frozen base. Identical prompts and greedy decoding for all models.}
 \begin{tabular}{@{}lccc@{}}
 \toprule
 Benchmark & Base & CRN~v2 & LoRA \\
 \midrule
-MMLU (knowledge) & 125/200 = 62.5\% & \textbf{125/200 = 62.5\%} ($\Delta{=}0$) & 64/200 = 32.0\% ($\Delta{=}{-}30.5$\,pp) \\
-BoolQ (comprehension) & 144/200 = 72.0\% & \textbf{144/200 = 72.0\%} ($\Delta{=}0$) & 110/200 = 55.0\% ($\Delta{=}{-}17.0$\,pp) \\
-Car-wash (implicit reasoning, $N{=}8$) & 6/8 = 75.0\% & \textbf{6/8 = 75.0\%} ($\Delta{=}0$) & 0/8 = 0\% ($\Delta{=}{-}75$\,pp) \\
+MMLU (knowledge) & 125/200 = 62.5\% & \textbf{125/200} ($\Delta{=}0$) & 64/200 = 32.0\% ($\Delta{=}{-}30.5$\,pp) \\
+BoolQ (comprehension) & 144/200 = 72.0\% & \textbf{144/200} ($\Delta{=}0$) & 110/200 = 55.0\% ($\Delta{=}{-}17.0$\,pp) \\
+Car-wash ($N{=}8$) & 6/8 = 75.0\% & \textbf{6/8} ($\Delta{=}0$) & 0/8 = 0\% ($\Delta{=}{-}75$\,pp) \\
 HellaSwag ($N{=}200$) & 0/200 & 0/200 & --- \\
 \bottomrule
 \end{tabular}
@@ -284,19 +285,20 @@ The qualitative pattern (weaker anchoring $\to$ worse correction) is consistent 
 
 \begin{table}[ht]
 \centering
-\small
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \caption{Injection-depth sweep (exploratory). All configurations use $\lambda{=}0.1$, SFT~2{,}000 steps unless noted. Logit CRN~v2 (rank~128, single depth) is the only independently verified configuration---checkpoint and benchmark JSONs are released. Multi-depth logit correction concatenates hidden states from multiple layers (including the final) before producing a single logit delta (rank~128, $\sim$35M total). $^\dagger$Session-observed: eval logs were removed during disk maintenance and deep/multi-depth checkpoints were not retained, so these rows are not independently re-verifiable from the release.}
-\begin{tabular}{@{}lllccc@{}}
+\begin{tabular}{@{}llcccc@{}}
 \toprule
-Variant & Params & Training & Original (60) & Reworded (120) & Capability note \\
+Variant & Params & Training & Orig.\ (60) & Rew.\ (120) & Capability \\
 \midrule
 Deep $k{=}4$ (1.6M)$^\dagger$ & 1.6M & SFT-only & 18/60 = 30.0\% & 34/120 = 28.3\% & not probed \\
-Deep $k{=}7$ (1.6M)$^\dagger$ & 1.6M & SFT-only & 30/60 = 50.0\% & 67/120 = 55.8\% & MMLU probe 4/6 (intact) \\
-Deep $k{=}7$ (1.6M)$^\dagger$ & 1.6M & SFT $+$ DPO~500 & 30/60 = 50.0\% & 66/120 = 55.0\% & MMLU 4/30 = 13\%; BoolQ constant ``B'' \\
-Multi-depth logit (rank~128)$^\dagger$ & $\sim$35M & SFT~3k $+$ DPO~1k & 24/60 = 40.0\% & --- & not probed \\
-Long-train logit (rank~128)$^\dagger$ & 34M & SFT~5k $+$ DPO~2k & 32/60 = 53.3\% & --- & not re-probed \\
+Deep $k{=}7$ (1.6M)$^\dagger$ & 1.6M & SFT-only & 30/60 = 50.0\% & 67/120 = 55.8\% & MMLU 4/6, intact \\
+Deep $k{=}7$ (1.6M)$^\dagger$ & 1.6M & SFT+DPO 500 & 30/60 = 50.0\% & 66/120 = 55.0\% & MMLU 13\%, BoolQ const.\ B \\
+Multi-depth$^\dagger$ & $\sim$35M & SFT 3k+DPO 1k & 24/60 = 40.0\% & --- & not probed \\
+Long-train$^\dagger$ & 34M & SFT 5k+DPO 2k & 32/60 = 53.3\% & --- & not re-probed \\
 \midrule
-\textbf{Logit CRN~v2} (rank~128) & \textbf{34M} & SFT $+$ DPO~500 & \textbf{32/60 = 53.3\%} & \textbf{52/120 = 43.3\%} & no degradation (Tab.~\ref{tab:capability}) \\
+\textbf{Logit CRN~v2} & \textbf{34M} & SFT+DPO 500 & \textbf{32/60 = 53.3\%} & \textbf{52/120 = 43.3\%} & none (Tab.~\ref{tab:capability}) \\
 \bottomrule
 \end{tabular}
 \label{tab:depth}
