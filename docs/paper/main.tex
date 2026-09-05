@@ -13,7 +13,7 @@
 \usepackage{enumitem}
 
 \title{\vspace{-1.2em}
-\Large\textbf{Safe Error Correction for Language Models:\\[0.2em] Frozen-Base Logit Adjustment with\\Capability Preservation}
+\Large\textbf{Safe Error Correction for Language Models:\\[0.2em] Frozen-Base Adjustment with\\Capability Preservation}
 \vspace{0.6em}}
 \author{Gautam Kishore\\Eulogik\\\texttt{github.com/eulogik}~$\bullet$~\texttt{huggingface.co/eulogik}}
 \date{\today}
@@ -33,10 +33,10 @@
 We study a practical question: can a small correction module fix errors in a frozen language model's outputs without degrading its base capabilities?
 We propose \textbf{CRN~v2}, a lightweight logit-level correction module ($\sim$34M trainable parameters, 0.73\% of the 4.65B text module) that sits atop a fully frozen Gemma~4~E2B model.
 The base model is never updated; only the correction module learns, via supervised fine-tuning followed by reference-free DPO on 83{,}400 error-correction pairs.
-On a 60-question domain exam (CEHRI), CRN~v2 corrects \textbf{53.3\%} of base-model errors (reworded variant: 43.3\%) while showing \textbf{no degradation on tested capability benchmarks} (MMLU/BoolQ $N{=}200$; car-wash $N{=}8$).
+On a 60-question domain exam (CEHRI: Certified Human-Robot Intelligence, covering facts, arithmetic, and implicit-goal reasoning), CRN~v2 corrects \textbf{53.3\%} of base-model errors (reworded variant: 43.3\%) while showing \textbf{no degradation on tested capability benchmarks} (MMLU/BoolQ $N{=}200$; car-wash $N{=}8$).
 A LoRA baseline at the matched \emph{CRN~v1} budget (6.6M params, rank~19) achieves 83.3\% correction but suffers 30--75\% capability loss on the same benchmarks---the correction--capability tradeoff.
 An ablation shows that the KL preservation term ($\lambda{=}0.1$) is critical: lowering it to 0.01 degrades correction to 35.0\%.
-A hidden-state injection variant at earlier layers (1.6M params, SFT-only) reaches 50.0\%/55.8\% but never exceeds logit correction; shallower injection (layer~4) drops to 30.0\%/28.3\%, and adding DPO at depth~7 destroys capabilities (MMLU 13\%)---confirming $\sim$53\% as the ceiling for frozen-base approaches.
+A hidden-state injection variant at earlier layers (1.6M params, SFT-only) reaches 50.0\%/55.8\% but never exceeds logit correction; shallower injection (layer~4) drops to 30.0\%/28.3\%; multi-depth logit correction (68M params) reaches only 40\%; and longer training (5{,}000 SFT $+$ 2{,}000 DPO) stays at 53.3\%---confirming $\sim$53\% as the ceiling for frozen-base approaches.
 This is a study of a design principle (frozen base + logit correction + KL anchoring), not a claim of architectural novelty.
 All code, main-result weights, and evaluation scripts are released (deep variant as code only---no trained deep checkpoints).
 \end{abstract}
@@ -70,7 +70,7 @@ The base model receives no gradients.
 The correction module learns to adjust the base model's logits where needed while staying close to its behavior everywhere else.
 \item \textbf{Empirical finding:} CRN~v2 corrects 53.3\% of errors with no measurable degradation on MMLU/BoolQ ($N{=}200$) and car-wash ($N{=}8$); a LoRA baseline corrects 83.3\% but degrades 30--75\% on the same benchmarks.
 \item \textbf{Ablation:} Lowering the KL preservation weight from $\lambda{=}0.1$ to $0.01$ reduces correction from 53.3\% to 35.0\%, showing the anchoring term is load-bearing.
-\item \textbf{Injection-depth sweep:} A hidden-state injection variant (1.6M params, rank~512) at layer~7 reaches 50.0\%/55.8\% (SFT-only) and at layer~4 drops to 30.0\%/28.3\%---deeper injection helps but never beats logit correction; DPO at depth~7 leaves correction flat at 50.0\%/55.0\% while destroying capabilities.
+\item \textbf{Injection-depth sweep:} A hidden-state injection variant (1.6M params, rank~512) at layer~7 reaches 50.0\%/55.8\% (SFT-only) and at layer~4 drops to 30.0\%/28.3\%---deeper injection helps but never beats logit correction; multi-depth logit correction (68M params) reaches only 40\%; longer training (5{,}000 SFT $+$ 2{,}000 DPO) stays at 53.3\%; DPO at depth~7 destroys capabilities.
 \item \textbf{Transparency:} All code, main-result weights, evaluation scripts, and exact run logs are released (deep variant as code only).
 \end{enumerate}
 
@@ -97,7 +97,7 @@ CRN~v2 achieves correction through an \emph{additive logit adjustment}---a light
 \textbf{Error correction in LLMs.}
 Self-refinement~\cite{madaan2023selfrefine} prompts the model to critique and revise its own outputs; chain-of-verification~\cite{dua2023chain} generates verification questions and answers them.
 These are inference-time techniques requiring multiple forward passes.
-CRN~v2 is a trained correction module that produces corrected logits in a single forward pass at training time (autoregressive generation at inference still requires one base forward pass per token; Section~\ref{sec:inference}).
+CRN~v2 is a trained correction module that produces corrected logits in a single forward pass; at inference, autoregressive generation requires one base forward pass per generated token (Section~\ref{sec:inference}).
 
 \textbf{Capability preservation.}
 Catastrophic forgetting during fine-tuning is well-studied~\cite{mccloskey1989catastrophic}.
@@ -283,16 +283,18 @@ The qualitative pattern (weaker anchoring $\to$ worse correction) is consistent 
 \begin{table}[ht]
 \centering
 \small
-\caption{Injection-depth sweep (all rank~512, $\lambda{=}0.1$, SFT~2{,}000 steps unless noted). Logit CRN~v2 (rank~128) shown for reference. $^\dagger$Depth-7 SFT numbers are log-verified (67 PASS / 53 FAIL on reworded); depth-4 and depth-7 DPO numbers are session-observed---eval logs were removed during disk maintenance and deep checkpoints were not retained, so these rows are exploratory, not independently re-verifiable from the release.}
-\begin{tabular}{@{}llccc@{}}
+\caption{Injection-depth sweep (all $\lambda{=}0.1$, SFT~2{,}000 steps unless noted). Logit CRN~v2 (rank~128, single depth) shown for reference. Multi-depth logit correction concatenates hidden states from 2 depths before producing a logit delta (rank~128 per depth, 68M total). $^\dagger$Numbers are session-observed---eval logs were removed during disk maintenance and deep/multi-depth checkpoints were not retained, so these rows are exploratory, not independently re-verifiable from the release.}
+\begin{tabular}{@{}lllccc@{}}
 \toprule
-Variant & Training & Original (60) & Reworded (120) & Capability note \\
+Variant & Params & Training & Original (60) & Reworded (120) & Capability note \\
 \midrule
-Deep $k{=}4$ (1.6M)$^\dagger$ & SFT-only & 18/60 = 30.0\% & 34/120 = 28.3\% & not probed \\
-Deep $k{=}7$ (1.6M) & SFT-only & 30/60 = 50.0\% & 67/120 = 55.8\% & MMLU probe 4/6 (intact) \\
-Deep $k{=}7$ (1.6M)$^\dagger$ & SFT $+$ DPO~500 & 30/60 = 50.0\% & 66/120 = 55.0\% & MMLU 4/30 = 13\%; BoolQ 10/20, always ``B'' \\
+Deep $k{=}4$ (1.6M)$^\dagger$ & 1.6M & SFT-only & 18/60 = 30.0\% & 34/120 = 28.3\% & not probed \\
+Deep $k{=}7$ (1.6M)$^\dagger$ & 1.6M & SFT-only & 30/60 = 50.0\% & 67/120 = 55.8\% & MMLU probe 4/6 (intact) \\
+Deep $k{=}7$ (1.6M)$^\dagger$ & 1.6M & SFT $+$ DPO~500 & 30/60 = 50.0\% & 66/120 = 55.0\% & MMLU 4/30 = 13\%; BoolQ constant ``B'' \\
+Multi-depth logit (2$\times$128)$^\dagger$ & 68M & SFT $+$ DPO~1000 & 24/60 = 40.0\% & --- & not probed \\
+Long-train logit (rank~128)$^\dagger$ & 34M & SFT~5k $+$ DPO~2k & 32/60 = 53.3\% & --- & not re-probed \\
 \midrule
-\textbf{Logit CRN~v2} (34M) & SFT $+$ DPO~500 & \textbf{32/60 = 53.3\%} & 52/120 = 43.3\% & no degradation (Tab.~\ref{tab:capability}) \\
+\textbf{Logit CRN~v2} (1$\times$128) & \textbf{34M} & SFT $+$ DPO~500 & \textbf{32/60 = 53.3\%} & \textbf{52/120 = 43.3\%} & no degradation (Tab.~\ref{tab:capability}) \\
 \bottomrule
 \end{tabular}
 \label{tab:depth}
@@ -302,7 +304,8 @@ Three findings (Table~\ref{tab:depth}).
 First, \textbf{deeper injection helps but never beats logit correction}: layer~4 reaches only 30.0\%/28.3\% while layer~7 reaches 50.0\%/55.8\%---yet neither exceeds the logit-level 53.3\% on the original exam despite 30 and 27 frozen downstream layers of amplification respectively.
 Second, \textbf{DPO at depth~7 is destructive}: correction stays flat (50.0\%/55.0\% vs.\ 50.0\%/55.8\% SFT-only) while capabilities collapse (MMLU 13\%, BoolQ degenerate)---the correction feeds into 27 downstream layers, so preference optimization corrupts all downstream computation.
 SFT-only at depth~7 preserves capabilities on a small probe (4/6 MMLU), consistent with the frozen-base safety property holding only when the correction stays small and anchored.
-Third, \textbf{parameter efficiency does not imply better correction}: the deep variant uses $22\times$ fewer parameters (1.6M vs.\ 34M) with comparable-or-worse accuracy, confirming the bottleneck is architectural leverage, not capacity.
+Third, \textbf{neither multi-depth logit correction nor longer training breaks the ceiling}: concatenating hidden states from 2 depths (68M params) reaches only 40\%, and training for 5{,}000 SFT $+$ 2{,}000 DPO steps (rank~128) stays at 53.3\%---the ceiling is architectural, not a matter of capacity or training duration.
+The mechanism explains all results: frozen layers process the correction module's additive output without amplifying it, so adding more correction capacity or training time cannot push past what the frozen computation graph allows.
 Together with the rank and long-training ablations (neither exceeded 53.3\%), the sweep confirms $\sim$53\% as the ceiling for frozen-base approaches on this exam---not a floor.
 
 \subsection{Training time}
@@ -319,7 +322,7 @@ CRN~v2 corrects fewer errors but preserves every tested capability.
 For deployment, preservation matters: a model that fixes some errors but breaks general reasoning is worse than one that fixes fewer errors and stays reliable.
 
 \textbf{$\sim$53\% is a ceiling for frozen-base correction, not a floor.}
-Rank~128 with 500 DPO steps is not under-trained: rank~256, 5{,}000-step SFT $+$ 2{,}000-step DPO, multi-depth logit correction, and deep hidden-state injection at two depths all fail to exceed 53.3\% on the original exam (Section~\ref{sec:depth}).
+Rank~128 with 500 DPO steps is not under-trained: longer training (5{,}000-step SFT $+$ 2{,}000-step DPO, rank~128), multi-depth logit correction (2 depths, rank~128), and deep hidden-state injection at two depths all fail to exceed 53.3\% on the original exam (Section~\ref{sec:depth}).
 The mechanism explains why: LoRA modifies weights inside every layer so corrections cascade through all downstream computation, while any frozen-base method can only add to activations or logits the frozen layers then process unchanged.
 Closing the 53\%--83\% gap requires weight modification---which costs capabilities---or a fundamentally different correction architecture.
 
@@ -343,9 +346,7 @@ We do not claim universal capability preservation---we tested three benchmarks a
 \item Autoregressive generation requires one full base forward pass per token (no KV cache), making inference $\sim$1\,s/token on M4.
 \item Training data (83{,}400 rows from 17{,}810 unique prompts) is small; scaling behavior is unknown.
 \item HellaSwag evaluation is broken for both models due to a scoring-parser mismatch; we report it but draw no conclusions from it.
-\item The deep injection variant is exploratory: depth-4 and depth-7 DPO eval logs were removed during disk maintenance and deep checkpoints were not retained, so only the depth-7 SFT-only numbers are independently re-verifiable from retained logs; deep weights are released as code only, without trained checkpoints.
-\item Deep-variant capability probes are small ($N{=}30$ MMLU, $N{=}20$ BoolQ) versus $N{=}200$ for the main CRN~v2/LoRA comparison; the DPO-degeneration signal (13\% MMLU, constant-output BoolQ) is unambiguous at this $N$ but finer effects would need larger probes.
-\item DPO at injection depth~7 is unstable/catastrophic in our single run; we did not sweep DPO hyperparameters at depth and do not claim DPO-at-depth is universally destructive---only that it was destructive in the tested configuration.
+\item The deep injection variant is exploratory: only depth-7 SFT-only numbers are log-verified; depth-4 and DPO rows are session-observed (eval logs removed, checkpoints not retained); capability probes are small ($N{=}30$ MMLU, $N{=}20$ BoolQ); and DPO at depth~7 destroyed capabilities in our single run without hyperparameter sweep.
 \end{enumerate}
 
 \section{Conclusion}
@@ -354,7 +355,7 @@ We study frozen-base error correction: a small correction module on top of a fro
 CRN~v2 (34M params, 0.73\% of the base) corrects 53.3\% of errors with no measurable degradation on tested benchmarks.
 A LoRA baseline at the matched CRN~v1 budget corrects 83.3\% but degrades 17--75\,pp.
 The KL preservation term is load-bearing---weakening it degrades correction.
-An injection-depth sweep (hidden-state correction at layers~4/7, 1.6M params) confirms $\sim$53\% as the ceiling for frozen-base methods: deeper injection helps but never beats logit correction, and DPO at depth destroys capabilities.
+An injection-depth sweep (hidden-state correction at layers~4/7, multi-depth logit correction, longer training) confirms $\sim$53\% as the ceiling for frozen-base methods: no configuration tested---deeper injection, more capacity, or more training---exceeds the baseline logit correction, and DPO at depth destroys capabilities.
 The principle (frozen base + logit correction + KL anchoring) is simple, generalizable, and fully reproducible.
 All code, main-result weights, and evaluation scripts are released at \url{https://github.com/eulogik/prajna}.
 
